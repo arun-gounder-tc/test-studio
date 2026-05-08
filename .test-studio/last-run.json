@@ -1,0 +1,72 @@
+[
+  {
+    "description": "  As a developer setting up the automation kit\n  I want to verify Cypress + Cucumber + esbuild work together\n  So that future tests have a working foundation",
+    "elements": [
+      {
+        "description": "",
+        "id": "bdd-pipeline-smoke-test;visiting-example.com-loads-a-known-heading",
+        "keyword": "Scenario",
+        "line": 7,
+        "name": "Visiting example.com loads a known heading",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "When ",
+            "line": 8,
+            "name": "I navigate to \"https://example.com/\"",
+            "match": {
+              "location": "not available:0"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 53000000
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "Then ",
+            "line": 9,
+            "name": "I should see \"Example Domain\"",
+            "match": {
+              "location": "not available:0"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 13000000
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "And ",
+            "line": 10,
+            "name": "the URL should contain \"example.com\"",
+            "match": {
+              "location": "not available:0"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 6000000
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@smoke",
+            "line": 6
+          },
+          {
+            "name": "@phase1",
+            "line": 6
+          }
+        ],
+        "type": "scenario"
+      }
+    ],
+    "id": "bdd-pipeline-smoke-test",
+    "line": 1,
+    "keyword": "Feature",
+    "name": "BDD pipeline smoke test",
+    "tags": [],
+    "uri": "cypress/e2e/features/smoke.feature"
+  }
+]

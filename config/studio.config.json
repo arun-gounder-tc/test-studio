@@ -1,0 +1,19 @@
+{
+  "$schema": "./studio.config.schema.json",
+  "project": {
+    "name": "novamark-fe",
+    "displayName": "NovaMark Frontend"
+  },
+  "targetApp": {
+    "baseUrl": "http://localhost:4200",
+    "stagingUrl": "https://staging.novamark.com",
+    "productionUrl": null
+  },
+  "studio": {
+    "serverPort": 3001,
+    "uiPort": 4300
+  },
+  "auth": {
+    "adapterFile": "./auth.adapter.ts"
+  }
+}

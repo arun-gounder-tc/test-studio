@@ -1,0 +1,10 @@
+{
+  "description": "Page route map — used by AI to generate accurate navigation steps in Phase 2+",
+  "routes": {
+    "home": "/",
+    "login": "/login",
+    "dashboard": "/dashboard",
+    "admin": "/admin",
+    "adminDashboard": "/admin/dashboard"
+  }
+}

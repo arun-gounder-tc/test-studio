@@ -1,0 +1,15 @@
+{
+  "description": "Known selectors — used by AI in Phase 2+ for reliable step generation. Prefer data-cy attributes; fall back to ARIA / text.",
+  "pages": {
+    "login": {
+      "usernameInput": "[data-cy=username], input[name=username]",
+      "passwordInput": "[data-cy=password], input[name=password]",
+      "submitButton": "[data-cy=login-submit], button[type=submit]"
+    },
+    "dashboard": {
+      "welcomeHeading": "[data-cy=welcome-heading]",
+      "metricCards": "[data-cy=metric-card]",
+      "userMenu": "[data-cy=user-menu]"
+    }
+  }
+}

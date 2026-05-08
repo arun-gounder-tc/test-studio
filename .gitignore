@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Cypress runtime artifacts
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
+
+# Test Studio runtime data (Phase 2+)
+.test-studio/runs/
+.test-studio/uploads/
+.test-studio/*.db
+.test-studio/*.db-journal
+
+# Environment
+.env
+.env.local
+*.env
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json
+*.log
+npm-debug.log*
+
+# Build outputs
+dist/
+build/
