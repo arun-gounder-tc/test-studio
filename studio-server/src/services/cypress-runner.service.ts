@@ -1,9 +1,11 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { paths } from '../utils/paths.js';
+import { RunsRepo } from '../db/repositories/runs.repo.js';
+import { RunLogsRepo } from '../db/repositories/run-logs.repo.js';
+import { Run } from '../db/models/run.model.js';
 
 export type RunEventType =
   | 'start'
@@ -18,9 +20,11 @@ export interface RunEvent {
   data: Record<string, unknown>;
 }
 
+/** In-memory shape kept for SSE streaming; DB is source of truth for status/counts */
 export interface RunRecord {
   id: string;
   testId: string | null;
+  projectId: string;
   specPaths: string[];
   startedAt: string;
   finishedAt: string | null;
@@ -36,8 +40,11 @@ export interface RunRecord {
 const SCENARIO_PASS_RE = /^\s*✓\s+(.+?)(?:\s+\((\d+)ms\))?\s*$/;
 
 class RunnerService extends EventEmitter {
+  /** In-memory cache for active/recent runs (SSE replay, video/screenshot serving) */
   private runs = new Map<string, RunRecord>();
   private processes = new Map<string, ChildProcess>();
+  /** Per-run log buffer for batch DB inserts */
+  private logBuffers = new Map<string, { lines: { stream: 'stdout' | 'stderr' | 'event'; line: string }[]; seq: number }>();
 
   list(): RunRecord[] {
     return Array.from(this.runs.values()).sort((a, b) =>
@@ -49,19 +56,49 @@ class RunnerService extends EventEmitter {
     return this.runs.get(id);
   }
 
-  start(opts: { testId?: string; specRelativePath: string; headed?: boolean }): RunRecord {
-    const runId = randomUUID();
+  /** Load run from DB into memory (for SSE replay of past runs) */
+  async loadFromDB(id: string): Promise<RunRecord | null> {
+    const dbRun = await RunsRepo.get(id);
+    if (!dbRun) return null;
+    const record: RunRecord = {
+      id: dbRun.id,
+      testId: dbRun.testId,
+      projectId: dbRun.projectId,
+      specPaths: [],
+      startedAt: dbRun.startedAt.toISOString(),
+      finishedAt: dbRun.finishedAt?.toISOString() ?? null,
+      status: dbRun.status as RunRecord['status'],
+      exitCode: dbRun.exitCode,
+      scenarios: [],
+      events: [],
+      videoPath: null,
+      screenshotsDir: null,
+      headed: dbRun.headed,
+    };
+    this.runs.set(id, record);
+    return record;
+  }
+
+  async start(opts: { testId?: string; projectId: string; specRelativePath: string; headed?: boolean }): Promise<RunRecord> {
     const fullSpec = path.join(paths.projectRoot, opts.specRelativePath);
     if (!fs.existsSync(fullSpec)) {
       throw new Error(`Spec not found: ${opts.specRelativePath}`);
     }
     const headed = !!opts.headed;
 
+    // Persist to DB first
+    const dbRun = await RunsRepo.create({
+      projectId: opts.projectId,
+      testId: opts.testId,
+      headed,
+    });
+
     const record: RunRecord = {
-      id: runId,
+      id: dbRun.id,
       testId: opts.testId ?? null,
+      projectId: opts.projectId,
       specPaths: [opts.specRelativePath],
-      startedAt: new Date().toISOString(),
+      startedAt: dbRun.startedAt.toISOString(),
       finishedAt: null,
       status: 'running',
       exitCode: null,
@@ -71,7 +108,8 @@ class RunnerService extends EventEmitter {
       screenshotsDir: null,
       headed,
     };
-    this.runs.set(runId, record);
+    this.runs.set(dbRun.id, record);
+    this.logBuffers.set(dbRun.id, { lines: [], seq: 0 });
 
     this.appendEvent(record, 'start', {
       spec: opts.specRelativePath,
@@ -83,8 +121,6 @@ class RunnerService extends EventEmitter {
       ...(process.env as Record<string, string>),
       FORCE_COLOR: '0',
     };
-    // Only enable baseUrl when the spec actually uses relative URLs.
-    // Otherwise Cypress pre-verifies an unused baseUrl and fails.
     if (this.specNeedsBaseUrl(fullSpec)) {
       env.CY_USE_BASE_URL = '1';
     } else {
@@ -105,7 +141,7 @@ class RunnerService extends EventEmitter {
       cwd: paths.projectRoot,
       env,
     });
-    this.processes.set(runId, child);
+    this.processes.set(dbRun.id, child);
 
     let stdoutBuffer = '';
     const onStream = (chunk: Buffer | string, stream: 'stdout' | 'stderr') => {
@@ -121,20 +157,20 @@ class RunnerService extends EventEmitter {
     child.stdout.on('data', (c) => onStream(c, 'stdout'));
     child.stderr.on('data', (c) => onStream(c, 'stderr'));
 
-    child.on('close', (code) => {
+    child.on('close', async (code) => {
       if (stdoutBuffer.trim()) {
         this.processLine(record, stdoutBuffer, 'stdout');
         stdoutBuffer = '';
       }
+      // Flush remaining log buffer
+      await this.flushLogs(record.id);
+
       const exit = code ?? 0;
       record.exitCode = exit;
       record.finishedAt = new Date().toISOString();
 
-      // Replace stdout-derived scenarios with accurate data from cucumber JSON report
       const reportScenarios = this.readCucumberReport();
-      if (reportScenarios) {
-        record.scenarios = reportScenarios;
-      }
+      if (reportScenarios) record.scenarios = reportScenarios;
 
       const hasFailures = record.scenarios.some((s) => s.status === 'fail');
       record.status = exit === 0 && !hasFailures ? 'passed' : exit === 0 ? 'failed' : 'errored';
@@ -151,9 +187,19 @@ class RunnerService extends EventEmitter {
         '.test-studio/runs/screenshots',
         path.basename(opts.specRelativePath)
       );
-      if (fs.existsSync(screenshotsCandidate)) {
-        record.screenshotsDir = screenshotsCandidate;
-      }
+      if (fs.existsSync(screenshotsCandidate)) record.screenshotsDir = screenshotsCandidate;
+
+      // Persist final status to DB
+      const startMs = new Date(record.startedAt).getTime();
+      await RunsRepo.updateStatus(record.id, {
+        status: record.status as Run['status'],
+        exitCode: exit,
+        scenariosTotal: record.scenarios.length,
+        scenariosPassed: record.scenarios.filter((s) => s.status === 'pass').length,
+        scenariosFailed: record.scenarios.filter((s) => s.status === 'fail').length,
+        durationMs: Date.now() - startMs,
+        finishedAt: new Date(),
+      });
 
       this.appendEvent(record, 'finish', {
         exitCode: exit,
@@ -162,14 +208,16 @@ class RunnerService extends EventEmitter {
         videoPath: record.videoPath,
         screenshotsDir: record.screenshotsDir,
       });
-      this.processes.delete(runId);
+      this.processes.delete(dbRun.id);
     });
 
-    child.on('error', (err) => {
+    child.on('error', async (err) => {
       record.status = 'errored';
       record.finishedAt = new Date().toISOString();
       this.appendEvent(record, 'error', { message: err.message });
-      this.processes.delete(runId);
+      await this.flushLogs(record.id);
+      await RunsRepo.updateStatus(record.id, { status: 'errored', finishedAt: new Date() });
+      this.processes.delete(dbRun.id);
     });
 
     return record;
@@ -181,13 +229,34 @@ class RunnerService extends EventEmitter {
 
     this.appendEvent(record, 'log', { stream, line });
 
-    // Live updates only for passing scenarios — failures come from the JSON report at end
+    // Buffer for DB batch insert
+    const buf = this.logBuffers.get(record.id);
+    if (buf) {
+      buf.lines.push({ stream, line });
+      if (buf.lines.length >= 50) {
+        this.flushLogs(record.id).catch(() => {});
+      }
+    }
+
     const passMatch = line.match(SCENARIO_PASS_RE);
     if (passMatch) {
       const name = passMatch[1].trim();
       const ms = passMatch[2] ? parseInt(passMatch[2], 10) : undefined;
       record.scenarios.push({ name, status: 'pass', durationMs: ms });
       this.appendEvent(record, 'scenario', { name, status: 'pass', durationMs: ms });
+    }
+  }
+
+  private async flushLogs(runId: string): Promise<void> {
+    const buf = this.logBuffers.get(runId);
+    if (!buf || buf.lines.length === 0) return;
+    const toInsert = buf.lines.splice(0);
+    const startSeq = buf.seq;
+    buf.seq += toInsert.length;
+    try {
+      await RunLogsRepo.batchInsert(runId, toInsert, startSeq);
+    } catch {
+      // Non-fatal — logs may not persist but run continues
     }
   }
 

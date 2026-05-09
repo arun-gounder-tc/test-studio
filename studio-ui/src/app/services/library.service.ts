@@ -40,8 +40,11 @@ export class LibraryService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = 'http://localhost:3001/api/test-studio';
 
-  list(): Observable<LibraryResponse> {
-    return this.http.get<LibraryResponse>(`${this.baseUrl}/library`);
+  list(projectId?: string): Observable<LibraryResponse> {
+    const url = projectId
+      ? `${this.baseUrl}/library?projectId=${encodeURIComponent(projectId)}`
+      : `${this.baseUrl}/library`;
+    return this.http.get<LibraryResponse>(url);
   }
 
   content(id: string): Observable<TestContent> {

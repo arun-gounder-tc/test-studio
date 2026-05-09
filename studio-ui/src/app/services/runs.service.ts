@@ -53,8 +53,8 @@ export class RunsService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = 'http://localhost:3001/api/test-studio/runs';
 
-  start(testId: string, opts: { headed?: boolean } = {}): Observable<RunStartResponse> {
-    return this.http.post<RunStartResponse>(this.baseUrl, { testId, headed: !!opts.headed });
+  start(testId: string, opts: { headed?: boolean; projectId?: string } = {}): Observable<RunStartResponse> {
+    return this.http.post<RunStartResponse>(this.baseUrl, { testId, headed: !!opts.headed, projectId: opts.projectId });
   }
 
   get(runId: string): Observable<RunRecord> {

@@ -14,7 +14,7 @@ const baseUrl = process.env.CY_USE_BASE_URL === '1'
 export default defineConfig({
   e2e: {
     baseUrl,
-    specPattern: 'cypress/e2e/**/*.feature',
+    specPattern: ['cypress/e2e/**/*.feature', '.workspace/**/cypress/e2e/**/*.feature'],
     supportFile: 'cypress/support/e2e.ts',
     viewportWidth: 1440,
     viewportHeight: 900,

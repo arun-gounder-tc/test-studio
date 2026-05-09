@@ -68,8 +68,8 @@ export class ChatService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = 'http://localhost:3001/api/test-studio';
 
-  startConversation(): Observable<ConversationStart> {
-    return this.http.post<ConversationStart>(`${this.baseUrl}/conversations`, {});
+  startConversation(projectId?: string): Observable<ConversationStart> {
+    return this.http.post<ConversationStart>(`${this.baseUrl}/conversations`, projectId ? { projectId } : {});
   }
 
   fetchConversation(id: string): Observable<ConversationStart & { messages: ChatMessage[] }> {

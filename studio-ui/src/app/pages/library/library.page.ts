@@ -18,6 +18,7 @@ import {
   Monitor,
 } from 'lucide-angular';
 import { LibraryService, TestSummary } from '../../services/library.service';
+import { ProjectsService } from '../../services/projects.service';
 import { PreviewDialogComponent } from '../../components/preview-dialog/preview-dialog.component';
 
 @Component({
@@ -204,6 +205,7 @@ export class LibraryPage implements OnInit {
   private readonly libraryService = inject(LibraryService);
   private readonly router = inject(Router);
   private readonly dialog = inject(Dialog);
+  private readonly projectsService = inject(ProjectsService);
 
   readonly Plus = Plus;
   readonly RefreshCw = RefreshCw;
@@ -228,7 +230,7 @@ export class LibraryPage implements OnInit {
   refresh(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.libraryService.list().subscribe({
+    this.libraryService.list(this.projectsService.activeProjectId() ?? undefined).subscribe({
       next: (res) => {
         this.tests.set(res.tests);
         this.total.set(res.total);

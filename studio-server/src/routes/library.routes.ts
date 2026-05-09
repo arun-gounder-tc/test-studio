@@ -1,47 +1,71 @@
 import { Router } from 'express';
-import { filesystemService } from '../services/filesystem.service.js';
+import { TestsRepo } from '../db/repositories/tests.repo.js';
+import { ProjectsRepo } from '../db/repositories/projects.repo.js';
+import { parseOrFail, UuidParam, LibraryQuery } from '../utils/zod.js';
 
 export const libraryRouter = Router();
 
-libraryRouter.get('/', (_req, res) => {
+/** Resolve projectId from query or fallback to default slug */
+async function resolveProjectId(id?: string): Promise<string | null> {
+  if (id) return id;
+  const def = await ProjectsRepo.getBySlug('default');
+  return def?.id ?? null;
+}
+
+libraryRouter.get('/', async (req, res) => {
+  const query = parseOrFail(res, LibraryQuery, req.query);
+  if (!query) return;
   try {
-    const tests = filesystemService.listFeatureFiles();
+    const projectId = await resolveProjectId(query.projectId);
+    if (!projectId) {
+      res.status(400).json({ error: 'projectId is required (or create a project first)' });
+      return;
+    }
+    const tests = await TestsRepo.listByProject(projectId);
     res.json({
       total: tests.length,
+      projectId,
       tests: tests.map((t) => ({
         id: t.id,
         name: t.name,
-        relativePath: t.relativePath,
+        slug: t.slug,
         description: t.description,
         tags: t.tags,
-        scenarioCount: t.scenarioCount,
-        scenarios: t.scenarios,
-        source: 'manual',
-        status: 'ready',
-        lastRun: null,
+        source: t.source,
+        status: t.status,
+        currentVersion: t.currentVersion,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
-        sizeBytes: t.sizeBytes,
+        relativePath: `cypress/e2e/features/${t.slug}.feature`,
+        scenarioCount: 0,
+        scenarios: [],
+        lastRun: null,
+        sizeBytes: null,
       })),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
 });
 
-libraryRouter.get('/:id/content', (req, res) => {
+libraryRouter.get('/:id/content', async (req, res) => {
+  const params = parseOrFail(res, UuidParam, req.params);
+  if (!params) return;
   try {
-    const tests = filesystemService.listFeatureFiles();
-    const test = tests.find((t) => t.id === req.params.id);
-    if (!test) {
+    const result = await TestsRepo.getWithLatestVersion(params.id);
+    if (!result) {
       res.status(404).json({ error: 'Test not found' });
       return;
     }
-    const content = filesystemService.readFeatureContent(test.relativePath);
-    res.json({ id: test.id, name: test.name, relativePath: test.relativePath, content });
+    const { test, version } = result;
+    res.json({
+      id: test.id,
+      name: test.name,
+      slug: test.slug,
+      relativePath: `cypress/e2e/features/${test.slug}.feature`,
+      content: version.featureContent,
+    });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
 });

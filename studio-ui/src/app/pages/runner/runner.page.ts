@@ -34,6 +34,7 @@ import {
   ScenarioOutcome,
 } from '../../services/runs.service';
 import { LibraryService, TestSummary } from '../../services/library.service';
+import { ProjectsService } from '../../services/projects.service';
 
 interface LogLine {
   stream: 'stdout' | 'stderr' | 'system';
@@ -227,6 +228,7 @@ export class RunnerPage implements OnInit, OnDestroy, AfterViewChecked {
   private readonly router = inject(Router);
   private readonly runsService = inject(RunsService);
   private readonly library = inject(LibraryService);
+  private readonly projectsService = inject(ProjectsService);
 
   @ViewChild('logBox') logBox?: ElementRef<HTMLPreElement>;
 
@@ -312,7 +314,7 @@ export class RunnerPage implements OnInit, OnDestroy, AfterViewChecked {
     this.screenshots.set([]);
     this.finishedAt.set(null);
 
-    this.runsService.start(testId, { headed: this.headed() }).subscribe({
+    this.runsService.start(testId, { headed: this.headed(), projectId: this.projectsService.activeProjectId() ?? undefined }).subscribe({
       next: (res) => {
         this.runId.set(res.runId);
         this.startedAt.set(res.startedAt);

@@ -1,64 +1,51 @@
 [
   {
-    "description": "  Load the Webpage",
+    "description": "  Load the Sign-in Page",
     "elements": [
       {
         "description": "",
-        "id": "novamark-home-page;home-page-loads-at-https://novamark.hubblehox.ai/sign-in",
+        "id": "novamark-sign-in-page;sign-in-page-loads-at-https://novamark.hubblehox.ai/sign-in",
         "keyword": "Scenario",
         "line": 5,
-        "name": "Home page loads at https://novamark.hubblehox.ai/sign-in",
+        "name": "Sign-in page loads at https://novamark.hubblehox.ai/sign-in",
         "steps": [
           {
             "arguments": [],
             "keyword": "When ",
             "line": 6,
-            "name": "I navigate to \"https://novamark.hubblehox.ai/\"",
+            "name": "I navigate to \"https://novamark.hubblehox.ai/sign-in\"",
             "match": {
               "location": "not available:0"
             },
             "result": {
               "status": "passed",
-              "duration": 2606000000
+              "duration": 1901000000
             }
           },
           {
             "arguments": [],
             "keyword": "Then ",
             "line": 7,
-            "name": "the URL should contain \"https://novamark.hubblehox.ai/\"",
-            "match": {
-              "location": "not available:0"
-            },
-            "result": {
-              "status": "passed",
-              "duration": 10000000
-            }
-          },
-          {
-            "arguments": [],
-            "keyword": "When ",
-            "line": 8,
-            "name": "I click on \"Forgot Password\"",
-            "match": {
-              "location": "not available:0"
-            },
-            "result": {
-              "status": "passed",
-              "duration": 100000000
-            }
-          },
-          {
-            "arguments": [],
-            "keyword": "Then ",
-            "line": 9,
             "name": "the URL should contain \"/sign-in\"",
             "match": {
               "location": "not available:0"
             },
             "result": {
               "status": "passed",
-              "duration": 8000000
+              "duration": 9000000
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "Then ",
+            "line": 8,
+            "name": "I should see \"Login\"",
+            "match": {
+              "location": "not available:0"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 15000000
             }
           }
         ],
@@ -66,16 +53,20 @@
           {
             "name": "@novamark",
             "line": 4
+          },
+          {
+            "name": "@ai-generated",
+            "line": 4
           }
         ],
         "type": "scenario"
       }
     ],
-    "id": "novamark-home-page",
+    "id": "novamark-sign-in-page",
     "line": 1,
     "keyword": "Feature",
-    "name": "Novamark home page",
+    "name": "Novamark Sign-in Page",
     "tags": [],
-    "uri": "cypress/e2e/features/home.feature"
+    "uri": ".workspace/ae84a5dc-9ad3-4a0f-b346-10b77c41112b/cypress/e2e/features/novamark-sign-in-page.feature"
   }
 ]

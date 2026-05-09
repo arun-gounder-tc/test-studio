@@ -1,7 +1,11 @@
 import { Routes } from '@angular/router';
 
 export const routes: Routes = [
-  { path: '', redirectTo: 'library', pathMatch: 'full' },
+  { path: '', redirectTo: 'projects', pathMatch: 'full' },
+  {
+    path: 'projects',
+    loadComponent: () => import('./pages/projects/projects.page').then((m) => m.ProjectsPage),
+  },
   {
     path: 'library',
     loadComponent: () => import('./pages/library/library.page').then((m) => m.LibraryPage),
@@ -19,5 +23,5 @@ export const routes: Routes = [
     path: 'run/:testId',
     loadComponent: () => import('./pages/runner/runner.page').then((m) => m.RunnerPage),
   },
-  { path: '**', redirectTo: 'library' },
+  { path: '**', redirectTo: 'projects' },
 ];

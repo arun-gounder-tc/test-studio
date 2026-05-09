@@ -2,31 +2,43 @@ import { Router } from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import { runnerService } from '../services/cypress-runner.service.js';
-import { filesystemService } from '../services/filesystem.service.js';
+import { TestsRepo } from '../db/repositories/tests.repo.js';
+import { RunsRepo } from '../db/repositories/runs.repo.js';
+import { ProjectsRepo } from '../db/repositories/projects.repo.js';
+import { workspaceMaterializer } from '../services/workspace-materializer.service.js';
 import { paths } from '../utils/paths.js';
+import { parseOrFail, UuidParam, StartRunBody, ListRunsQuery, RunLogsQuery } from '../utils/zod.js';
 
 export const runsRouter = Router();
 
-runsRouter.post('/', (req, res) => {
+runsRouter.post('/', async (req, res) => {
+  const body = parseOrFail(res, StartRunBody, req.body ?? {});
+  if (!body) return;
   try {
-    const { testId, specRelativePath, headed } = req.body ?? {};
+    const { testId, headed } = body;
+    let spec: string | undefined = body.specRelativePath;
+    let projectId: string | undefined = body.projectId;
 
-    let spec: string | undefined = specRelativePath;
-    if (!spec && testId) {
-      const tests = filesystemService.listFeatureFiles();
-      const test = tests.find((t) => t.id === testId);
-      if (!test) {
+    if (testId) {
+      const result = await TestsRepo.getWithLatestVersion(testId);
+      if (!result) {
         res.status(404).json({ error: `Test ${testId} not found` });
         return;
       }
-      spec = test.relativePath;
+      projectId = projectId ?? result.test.projectId;
+      spec = spec ?? await workspaceMaterializer.getSpecRelativePath(projectId, result.test.slug);
     }
-    if (!spec) {
-      res.status(400).json({ error: 'testId or specRelativePath is required' });
+
+    if (!projectId) {
+      const def = await ProjectsRepo.getBySlug('default');
+      projectId = def?.id;
+    }
+    if (!projectId) {
+      res.status(400).json({ error: 'projectId is required' });
       return;
     }
 
-    const record = runnerService.start({ testId, specRelativePath: spec, headed: !!headed });
+    const record = await runnerService.start({ testId, projectId, specRelativePath: spec!, headed: !!headed });
     res.json({
       runId: record.id,
       status: record.status,
@@ -35,28 +47,42 @@ runsRouter.post('/', (req, res) => {
       headed: record.headed,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to start run';
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to start run' });
   }
 });
 
-runsRouter.get('/', (_req, res) => {
-  res.json({
-    runs: runnerService.list().map((r) => ({
-      id: r.id,
-      testId: r.testId,
-      status: r.status,
-      startedAt: r.startedAt,
-      finishedAt: r.finishedAt,
-      scenarioCount: r.scenarios.length,
-      passed: r.scenarios.filter((s) => s.status === 'pass').length,
-      failed: r.scenarios.filter((s) => s.status === 'fail').length,
-    })),
-  });
+runsRouter.get('/', async (req, res) => {
+  const query = parseOrFail(res, ListRunsQuery, req.query);
+  if (!query) return;
+  try {
+    if (query.projectId) {
+      const runs = await RunsRepo.listByProject(query.projectId);
+      res.json({ runs });
+    } else {
+      const runs = await RunsRepo.listAll();
+      res.json({ runs });
+    }
+  } catch {
+    res.json({
+      runs: runnerService.list().map((r) => ({
+        id: r.id,
+        testId: r.testId,
+        status: r.status,
+        startedAt: r.startedAt,
+        finishedAt: r.finishedAt,
+        scenarioCount: r.scenarios.length,
+        passed: r.scenarios.filter((s) => s.status === 'pass').length,
+        failed: r.scenarios.filter((s) => s.status === 'fail').length,
+      })),
+    });
+  }
 });
 
-runsRouter.get('/:id', (req, res) => {
-  const record = runnerService.get(req.params.id);
+runsRouter.get('/:id', async (req, res) => {
+  const params = parseOrFail(res, UuidParam, req.params);
+  if (!params) return;
+  let record = runnerService.get(params.id);
+  if (!record) record = (await runnerService.loadFromDB(params.id)) ?? undefined;
   if (!record) {
     res.status(404).json({ error: 'Run not found' });
     return;
@@ -64,8 +90,11 @@ runsRouter.get('/:id', (req, res) => {
   res.json(record);
 });
 
-runsRouter.get('/:id/stream', (req, res) => {
-  const record = runnerService.get(req.params.id);
+runsRouter.get('/:id/stream', async (req, res) => {
+  const params = parseOrFail(res, UuidParam, req.params);
+  if (!params) return;
+  let record = runnerService.get(params.id);
+  if (!record) record = (await runnerService.loadFromDB(params.id)) ?? undefined;
   if (!record) {
     res.status(404).end();
     return;
@@ -93,7 +122,7 @@ runsRouter.get('/:id/stream', (req, res) => {
   const unsubscribe = runnerService.subscribe(record.id, (evt) => {
     send(evt);
     if (evt.type === 'finish' || evt.type === 'error') {
-      res.write(`event: end\ndata: {"status":"${runnerService.get(record.id)?.status}"}\n\n`);
+      res.write(`event: end\ndata: {"status":"${runnerService.get(record!.id)?.status}"}\n\n`);
       res.end();
     }
   });
@@ -102,12 +131,11 @@ runsRouter.get('/:id/stream', (req, res) => {
 });
 
 runsRouter.get('/:id/video', (req, res) => {
-  const record = runnerService.get(req.params.id);
+  const record = runnerService.get(req.params['id']);
   if (!record?.videoPath || !fs.existsSync(record.videoPath)) {
     res.status(404).json({ error: 'Video not available' });
     return;
   }
-  // Stream with Range support for proper video playback (seeking, duration probe)
   const filePath = record.videoPath;
   const stat = fs.statSync(filePath);
   const total = stat.size;
@@ -129,37 +157,45 @@ runsRouter.get('/:id/video', (req, res) => {
 });
 
 runsRouter.get('/:id/screenshots', (req, res) => {
-  const record = runnerService.get(req.params.id);
+  const record = runnerService.get(req.params['id']);
   if (!record?.screenshotsDir || !fs.existsSync(record.screenshotsDir)) {
     res.json({ files: [] });
     return;
   }
-  const files = fs
-    .readdirSync(record.screenshotsDir)
-    .filter((f) => /\.(png|jpg|jpeg)$/i.test(f));
+  const files = fs.readdirSync(record.screenshotsDir).filter((f) => /\.(png|jpg|jpeg)$/i.test(f));
   const origin = `${req.protocol}://${req.get('host')}`;
   res.json({
     files: files.map((f) => ({
       name: f,
-      url: `${origin}/api/test-studio/runs/${record.id}/screenshots/${encodeURIComponent(f)}`,
+      url: `${origin}/api/test-studio/runs/${record!.id}/screenshots/${encodeURIComponent(f)}`,
     })),
   });
 });
 
 runsRouter.get('/:id/screenshots/:filename', (req, res) => {
-  const record = runnerService.get(req.params.id);
-  if (!record?.screenshotsDir) {
-    res.status(404).end();
-    return;
-  }
-  const safe = path.basename(req.params.filename);
+  const record = runnerService.get(req.params['id']);
+  if (!record?.screenshotsDir) { res.status(404).end(); return; }
+  const safe = path.basename(req.params['filename']);
   const full = path.join(record.screenshotsDir, safe);
-  if (!fs.existsSync(full)) {
-    res.status(404).end();
-    return;
-  }
-  // dotfiles: 'allow' lets us serve files inside .test-studio/
+  if (!fs.existsSync(full)) { res.status(404).end(); return; }
   res.sendFile(path.resolve(full), { dotfiles: 'allow' });
 });
 
+/** GET /runs/:id/logs?after=-1&limit=500 */
+runsRouter.get('/:id/logs', async (req, res) => {
+  const params = parseOrFail(res, UuidParam, req.params);
+  if (!params) return;
+  const query = parseOrFail(res, RunLogsQuery, req.query);
+  if (!query) return;
+  try {
+    const { RunLogsRepo } = await import('../db/repositories/run-logs.repo.js');
+    const logs = await RunLogsRepo.listByRun(params.id, query.after, query.limit);
+    res.json({ logs });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch logs' });
+  }
+});
+
 void paths;
+
+

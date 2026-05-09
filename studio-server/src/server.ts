@@ -1,31 +1,51 @@
+import 'reflect-metadata';
 import 'dotenv/config';
 import express from 'express';
-import cors from 'cors';
+import cors, { type CorsOptions } from 'cors';
 import { libraryRouter } from './routes/library.routes.js';
 import { conversationsRouter } from './routes/conversations.routes.js';
 import { testsRouter } from './routes/tests.routes.js';
 import { runsRouter } from './routes/runs.routes.js';
 import { modelsRouter } from './routes/models.routes.js';
+import { projectsRouter } from './routes/projects.routes.js';
 import { aiService } from './services/ai.service.js';
+import { initDB } from './db/sequelize.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 const STUDIO_UI_ORIGIN = process.env.STUDIO_UI_ORIGIN || 'http://localhost:4300';
+const ALLOWED_ORIGINS = new Set([STUDIO_UI_ORIGIN, 'http://localhost:4200', 'http://localhost:4300']);
 
 const app = express();
 
-app.use(cors({ origin: STUDIO_UI_ORIGIN, credentials: true }));
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman) or any allowed origin
+    if (!origin || ALLOWED_ORIGINS.has(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked: ${origin}`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+};
+
+// Must be registered BEFORE routes so preflight OPTIONS requests are handled
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
 
 app.get('/api/test-studio/health', (_req, res) => {
   res.json({
     ok: true,
-    version: '0.1.0',
+    version: '0.2.0',
     aiConfigured: aiService.isConfigured(),
     defaultModel: aiService.getDefaultModel(),
     timestamp: new Date().toISOString(),
   });
 });
 
+app.use('/api/test-studio/projects', projectsRouter);
 app.use('/api/test-studio/library', libraryRouter);
 app.use('/api/test-studio/conversations', conversationsRouter);
 app.use('/api/test-studio/tests', testsRouter);
@@ -36,9 +56,18 @@ app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.method} ${req.path} not found` });
 });
 
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`✅ studio-server listening on http://localhost:${PORT}`);
-  // eslint-disable-next-line no-console
-  console.log(`   CORS allowed origin: ${STUDIO_UI_ORIGIN}`);
-});
+async function bootstrap() {
+  try {
+    await initDB();
+  } catch (err) {
+    console.error('❌ Database init failed:', err);
+    console.warn('⚠️  Continuing without DB — in-memory fallback active.');
+  }
+
+  app.listen(PORT, () => {
+    console.log(`✅ studio-server listening on http://localhost:${PORT}`);
+    console.log(`   CORS allowed origin: ${STUDIO_UI_ORIGIN}`);
+  });
+}
+
+bootstrap();

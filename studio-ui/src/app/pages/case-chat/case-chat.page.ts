@@ -29,6 +29,7 @@ import {
 } from '../../services/chat.service';
 import { ModelEntry, ModelsService } from '../../services/models.service';
 import { ToastService } from '../../shared/toast/toast.service';
+import { ProjectsService } from '../../services/projects.service';
 
 interface DisplayMessage extends ChatMessage {
   generation?: Generation;
@@ -319,6 +320,7 @@ export class CaseChatPage implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
+  private readonly projectsService = inject(ProjectsService);
 
   readonly RefreshCw = RefreshCw;
   readonly ArrowLeft = ArrowLeft;
@@ -417,7 +419,7 @@ export class CaseChatPage implements OnInit {
     this.latestValidation.set(null);
     this.messages.set([]);
     this.refineTestId.set(null);
-    this.chat.startConversation().subscribe({
+    this.chat.startConversation(this.projectsService.activeProjectId() ?? undefined).subscribe({
       next: (res) => {
         this.conversationId.set(res.id);
         this.aiConfigured.set(res.aiConfigured);

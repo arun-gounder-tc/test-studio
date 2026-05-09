@@ -1,4 +1,10 @@
-import { randomUUID } from 'node:crypto';
+/**
+ * conversation.store.ts
+ * DB-backed wrapper over ConversationsRepo + MessagesRepo.
+ * Keeps the same surface the routes depend on so migration is non-breaking.
+ */
+import { ConversationsRepo } from '../db/repositories/conversations.repo.js';
+import { Message } from '../db/models/message.model.js';
 import type { ChatTurn, GenerationResult } from './ai.service.js';
 
 export interface MessageRecord {
@@ -14,75 +20,74 @@ export interface ConversationRecord {
   startedAt: string;
   messages: MessageRecord[];
   latestGeneration: GenerationResult | null;
-  /** When set, /tests/save will overwrite this existing test's file instead of creating a new one. */
   originatingTestId?: string;
 }
 
-class ConversationStore {
-  private conversations = new Map<string, ConversationRecord>();
+function toMessageRecord(m: Message): MessageRecord {
+  const meta = (m.metadata ?? {}) as Record<string, unknown>;
+  return {
+    id: String(m.id),
+    role: m.role as 'user' | 'assistant',
+    content: m.content ?? '',
+    createdAt: (m.createdAt ?? new Date()).toISOString(),
+    generation: (meta['generation'] as GenerationResult) ?? undefined,
+  };
+}
 
-  create(): ConversationRecord {
-    const conv: ConversationRecord = {
-      id: randomUUID(),
-      startedAt: new Date().toISOString(),
+class ConversationStore {
+  async create(projectId: string): Promise<ConversationRecord> {
+    const conv = await ConversationsRepo.create({ projectId });
+    return {
+      id: conv.id,
+      startedAt: conv.startedAt.toISOString(),
       messages: [],
       latestGeneration: null,
     };
-    this.conversations.set(conv.id, conv);
-    return conv;
   }
 
-  get(id: string): ConversationRecord | undefined {
-    return this.conversations.get(id);
-  }
-
-  list(): ConversationRecord[] {
-    return Array.from(this.conversations.values()).sort((a, b) =>
-      b.startedAt.localeCompare(a.startedAt)
-    );
-  }
-
-  appendUser(id: string, content: string): MessageRecord {
-    const conv = this.requireConv(id);
-    const msg: MessageRecord = {
-      id: randomUUID(),
-      role: 'user',
-      content,
-      createdAt: new Date().toISOString(),
+  async get(id: string): Promise<ConversationRecord | undefined> {
+    const conv = await ConversationsRepo.get(id);
+    if (!conv) return undefined;
+    const messages = (conv.messages ?? []).map(toMessageRecord);
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && m.generation);
+    return {
+      id: conv.id,
+      startedAt: conv.startedAt.toISOString(),
+      messages,
+      latestGeneration: lastAssistant?.generation ?? null,
+      originatingTestId: conv.originatingTestId ?? undefined,
     };
-    conv.messages.push(msg);
-    return msg;
   }
 
-  appendAssistant(id: string, content: string, generation?: GenerationResult): MessageRecord {
-    const conv = this.requireConv(id);
-    const msg: MessageRecord = {
-      id: randomUUID(),
-      role: 'assistant',
-      content,
-      createdAt: new Date().toISOString(),
-      generation,
-    };
-    conv.messages.push(msg);
-    if (generation) conv.latestGeneration = generation;
-    return msg;
+  async list(): Promise<ConversationRecord[]> {
+    const convs = await ConversationsRepo.list();
+    return convs.map((c) => ({
+      id: c.id,
+      startedAt: c.startedAt.toISOString(),
+      messages: [],
+      latestGeneration: null,
+      originatingTestId: c.originatingTestId ?? undefined,
+    }));
   }
 
-  toChatTurns(id: string): ChatTurn[] {
-    const conv = this.requireConv(id);
-    return conv.messages.map((m) => ({ role: m.role, content: m.content }));
+  async appendUser(id: string, content: string): Promise<MessageRecord> {
+    const msg = await ConversationsRepo.appendUserMessage(id, content);
+    return toMessageRecord(msg);
   }
 
-  setOriginatingTestId(id: string, testId: string): void {
-    const conv = this.requireConv(id);
-    conv.originatingTestId = testId;
+  async appendAssistant(id: string, content: string, generation?: GenerationResult): Promise<MessageRecord> {
+    const msg = await ConversationsRepo.appendAssistantMessage(id, content, generation ?? ({} as GenerationResult));
+    return toMessageRecord(msg);
   }
 
-  private requireConv(id: string): ConversationRecord {
-    const conv = this.conversations.get(id);
-    if (!conv) throw new Error(`Conversation ${id} not found`);
-    return conv;
+  async toChatTurns(id: string): Promise<ChatTurn[]> {
+    return ConversationsRepo.toChatTurns(id);
+  }
+
+  async setOriginatingTestId(id: string, testId: string): Promise<void> {
+    await ConversationsRepo.setOriginatingTest(id, testId);
   }
 }
 
 export const conversationStore = new ConversationStore();
+
