@@ -1,38 +1,52 @@
 # NovaMark Automation Suite
 
-Cypress + BDD foundation for novamark-fe (Phase 1). The AI Test Studio (Phases 2–4) will be added on top of this foundation.
+Cypress + BDD foundation **plus** an AI Test Studio (Express backend + Angular UI) for authoring, editing, and running tests via natural-language chat.
 
 This folder is **completely separate** from the application repo (`novamark-fe`). The app stays untouched.
 
 ---
 
-## Phase 1 — what's working
+## What's working
 
-- ✅ Cypress 14 with Cucumber/Gherkin (BDD) preprocessor + esbuild
-- ✅ TypeScript 5.6
-- ✅ Page Object Model scaffolding (`cypress/support/pages/`)
-- ✅ Reusable step definitions (auth, navigation, form, verification)
+**Cypress + BDD (Phase 1)**
+- ✅ Cypress 14 with Cucumber/Gherkin preprocessor + esbuild
+- ✅ TypeScript 5.6, Page Object Model, reusable steps
 - ✅ `cy.loginAs(role)` custom command driven by `config/auth.adapter.ts`
-- ✅ Smoke spec passing (`cypress/e2e/features/smoke.feature`)
 
-Phase 2+ (AI Test Studio backend, UI, runner) — not yet built.
+**Test Studio (Phases 2–4 + Edit + multi-provider AI + Tailwind UI)**
+- ✅ Express backend on `:3001` — chat, save, library, edit, refine, run
+- ✅ Angular 19 + **Tailwind CSS 4** + lucide icons UI on `:4300`
+- ✅ **Multi-provider AI** — picks OpenAI or Anthropic per request based on the model the tester selects in the dropdown (`gpt-*` / `o*` → OpenAI, `claude-*` → Anthropic)
+- ✅ Refine flow: "Refine with AI" on Library/Edit → chat seeded with current `.feature` → Save **overwrites the original file** (no `-2.feature` copies)
+- ✅ Live Cypress runs with SSE log stream, video, and screenshots
+- ✅ Headless or headed runs (per-run choice, persisted in URL)
+
+Phase 5+ (SQLite, file upload, Studio auth, history page) — pending.
 
 ---
 
 ## Quickstart
 
 ```bash
-# install
+# install (root + studio-server + studio-ui)
 npm install
+(cd studio-server && npm install)
+(cd studio-ui     && npm install)
 
-# run all .feature specs (headless)
-npm run cy:run
+# add at least one AI key
+cp studio-server/.env.example studio-server/.env
+# then edit it: set ANTHROPIC_API_KEY and/or OPENAI_API_KEY
 
-# open Cypress UI (interactive, headed)
-npm run cy:open
+# run the full studio (server + UI together)
+npm run studio
+# UI: http://localhost:4300
+# Backend health: http://localhost:3001/api/test-studio/health
+# Available models: http://localhost:3001/api/test-studio/models
 
-# run with target app baseUrl (requires novamark-fe running on :4200)
-CY_USE_BASE_URL=1 npm run cy:run
+# OR run just Cypress (no UI)
+npm run cy:run                              # all feature specs, headless
+npm run cy:open                             # interactive
+CY_USE_BASE_URL=1 npm run cy:run            # with target app on :4200
 ```
 
 ---
@@ -40,7 +54,7 @@ CY_USE_BASE_URL=1 npm run cy:run
 ## Folder layout
 
 ```
-novamark-automation/
+test-studio/
 ├── cypress/
 │   ├── e2e/features/          ← .feature files (Gherkin)
 │   ├── support/
@@ -104,12 +118,17 @@ CY_USE_BASE_URL=1 npm run cy:run -- --spec cypress/e2e/features/admin-login.feat
 | Phase | Status | Deliverable |
 |---|---|---|
 | 1 | ✅ done | Cypress + BDD foundation |
-| 2 | next | Backend AI service (Express + Anthropic + SQLite) |
-| 3 | next | Test Studio Angular UI (chat + library + runner) |
-| 4 | next | Live runner with SSE log streaming |
-| 5 | future | Extract as portable kit (`@yourname/test-studio-kit`) |
+| 2 | ✅ done | Backend AI service (Express + multi-provider AI) |
+| 3 | ✅ done | Test Studio Angular UI (Tailwind + lucide) |
+| 4 | ✅ done | Live runner with SSE log streaming + video/screenshots |
+| — | ✅ done | Edit page + Refine-with-AI (overwrites original) + per-message model picker |
+| 5 | next | SQLite persistence (replace in-memory stores) |
+| 6 | next | CSV/Excel upload + batch save |
+| 7 | next | Studio auth (Keycloak) |
+| 8 | next | Test detail / version history page |
+| 14 | future | Extract as portable kit (`@yourname/test-studio-kit`) |
 
-See `../novamark-fe/docs/TEST-STUDIO-PLAN.md` for the full plan.
+See `docs/TEST-STUDIO-PLAN.md`, `docs/TEST-STUDIO-PROGRESS.md`, and `docs/ARCHITECTURE.md` for the full picture.
 
 ---
 
@@ -117,3 +136,29 @@ See `../novamark-fe/docs/TEST-STUDIO-PLAN.md` for the full plan.
 
 - Node v23 shows an engine warning from Cypress (it wants 20/22/24). Non-blocking. Upgrade to 24 LTS when convenient.
 - TypeScript pinned at 5.6.3 — TS 6.x conflicts with Cypress's bundled `ts-node`.
+- `tsx watch` does NOT pick up `.env` changes — restart `studio-server` after editing `.env`.
+- Switching the chat model in the UI is free (no restart) — picker remembers last choice in `localStorage`.
+mujhe is appliction me database add krna hai (postgres)
+  ab me batata hu mujhe kya chahiye
+  
+  agar abhi current app dekho tho isme features hai jo mujhe dikhte hai me unko run kr sakta hu, edit kr sakta hu with using openai ya claude aur mujhe sabh dikhta 
+  hi but ye sabh locally ho rha hai mujhe isko ek proper application banakr deploy krna hai
+  
+  aur ap dekhoge tho kuch structure nahi hai is application me...me batat hu mujhe kuch new features chahiye is app me
+  
+  1. user multiple projects create kr sakta hai(jese software development me project ka nam hota hai aur kuch detais hote hai - CRUD)
+  2. Project ke features (tests) hote hai
+  3. logs maintain krna hai konse project ka konsa test ka kya log hai vo gail hua tha, pass hua tha, etc
+  4. Test runs ke logs with image / video url artifacts maintain hoe chahiye database me (logs)
+  5. minIO bucket use krna hai for media storage
+  6. chat jab krta hu me LLM ke sath tab image attach krne ka bhi feature chahiye
+  
+  
+  
+  as a user mujhe project dikhta hai me uske undar kithne scripts / features / tests hai dekh sakta hu, unme se kisiko bhi edit/preview/run(headed / headless) kr 
+  sakta hu, chat krke with AI bhi edit kr sakta hu - jese abhi currently ho rha hai app me - aur jo bhi logs hai ,project hai uske related sara data database me 
+  store ho rha hai parmanently aur me kabhi bhi jakr dekh sakta hu - minIO bucket se mujhe sare image / videos fetch krke dikhenge jo mujhe dekhna hai
+  
+  esa mujhe functionalities add krne hai current system me 
+  
+  iske hisab se mujhe plan batao kese kr sakte hai kya ye possible hai mujhe local dependency nikalna hai isko deployable app banana hai 

@@ -1,72 +1,81 @@
 [
   {
-    "description": "  As a developer setting up the automation kit\n  I want to verify Cypress + Cucumber + esbuild work together\n  So that future tests have a working foundation",
+    "description": "  Load the Webpage",
     "elements": [
       {
         "description": "",
-        "id": "bdd-pipeline-smoke-test;visiting-example.com-loads-a-known-heading",
+        "id": "novamark-home-page;home-page-loads-at-https://novamark.hubblehox.ai/sign-in",
         "keyword": "Scenario",
-        "line": 7,
-        "name": "Visiting example.com loads a known heading",
+        "line": 5,
+        "name": "Home page loads at https://novamark.hubblehox.ai/sign-in",
         "steps": [
           {
             "arguments": [],
             "keyword": "When ",
-            "line": 8,
-            "name": "I navigate to \"https://example.com/\"",
+            "line": 6,
+            "name": "I navigate to \"https://novamark.hubblehox.ai/\"",
             "match": {
               "location": "not available:0"
             },
             "result": {
               "status": "passed",
-              "duration": 53000000
+              "duration": 2606000000
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "Then ",
+            "line": 7,
+            "name": "the URL should contain \"https://novamark.hubblehox.ai/\"",
+            "match": {
+              "location": "not available:0"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 10000000
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "When ",
+            "line": 8,
+            "name": "I click on \"Forgot Password\"",
+            "match": {
+              "location": "not available:0"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 100000000
             }
           },
           {
             "arguments": [],
             "keyword": "Then ",
             "line": 9,
-            "name": "I should see \"Example Domain\"",
+            "name": "the URL should contain \"/sign-in\"",
             "match": {
               "location": "not available:0"
             },
             "result": {
               "status": "passed",
-              "duration": 13000000
-            }
-          },
-          {
-            "arguments": [],
-            "keyword": "And ",
-            "line": 10,
-            "name": "the URL should contain \"example.com\"",
-            "match": {
-              "location": "not available:0"
-            },
-            "result": {
-              "status": "passed",
-              "duration": 6000000
+              "duration": 8000000
             }
           }
         ],
         "tags": [
           {
-            "name": "@smoke",
-            "line": 6
-          },
-          {
-            "name": "@phase1",
-            "line": 6
+            "name": "@novamark",
+            "line": 4
           }
         ],
         "type": "scenario"
       }
     ],
-    "id": "bdd-pipeline-smoke-test",
+    "id": "novamark-home-page",
     "line": 1,
     "keyword": "Feature",
-    "name": "BDD pipeline smoke test",
+    "name": "Novamark home page",
     "tags": [],
-    "uri": "cypress/e2e/features/smoke.feature"
+    "uri": "cypress/e2e/features/home.feature"
   }
 ]
