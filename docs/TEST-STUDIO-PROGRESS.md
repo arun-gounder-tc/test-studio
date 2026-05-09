@@ -2,7 +2,7 @@
 
 > **Companion to `TEST-STUDIO-PLAN.md`.** Plan = architecture/decisions. This file = "what's done, what's left, in what order."
 >
-> **Last updated:** 2026-05-09 (multi-provider AI + refine-overwrite fix + Tailwind UI)
+> **Last updated:** 2026-05-10 (Phase A — Postgres + Multi-project complete ✅)
 
 ---
 
@@ -10,12 +10,12 @@
 
 | Item | Value |
 |---|---|
-| Overall state | **Phases 1, 2, 3, 4 + Edit + Preview + Headed mode + Multi-provider AI + Tailwind UI complete** |
-| Last verified working | Library list, Preview dialog (CDK), Run (headless + headed), Edit page, Save, Save & Run, AI refine seeding **(now overwrites original file)**, Cypress live SSE log streaming, Video + Screenshots serving, **OpenAI + Anthropic dual-provider with model picker** |
-| Blocker right now | None — multi-provider lets you run on OpenAI while Anthropic credits are zero. |
-| Estimated to MVP | **~4 sessions** (Phases 5–8) |
-| Estimated to production-ready | ~7 sessions total |
-| Estimated to portable kit | ~10 sessions total |
+| Overall state | **Phases 1–4 + Edit + Headed + Multi-provider AI + Tailwind UI + Phase A (Postgres + Multi-project) complete** |
+| Last verified working | Multi-project CRUD, project switcher, DB-backed library/tests/runs/conversations, AI chat → save test → run test (workspace materialization), SSE log streaming, video + screenshots, Zod validation on all routes |
+| Blocker right now | None |
+| Estimated to MVP | **~3 sessions** (Phases B, C, D from POSTGRES-MIGRATION-PLAN.md) |
+| Estimated to production-ready | ~6 sessions total |
+| Estimated to portable kit | ~9 sessions total |
 
 ---
 
@@ -106,48 +106,73 @@
 
 ---
 
+### Phase A (from POSTGRES-MIGRATION-PLAN.md) — Postgres + Multi-project ✅ COMPLETE
+**Completed:** 2026-05-10
+
+- ✅ Sequelize + Postgres 17 (remote) — connection, schema sync (`alter: { drop: false }`)
+- ✅ All DB models: `Project`, `ProjectConfig`, `Test`, `TestVersion`, `Run`, `RunLog`, `Conversation`, `Message`, `ChatAttachment`
+- ✅ All 6 repositories: `projects.repo`, `tests.repo`, `runs.repo`, `run-logs.repo`, `conversations.repo`, `attachments.repo`
+- ✅ `ConversationStore` — thin DB-backed wrapper (no more in-memory Map)
+- ✅ `RunnerService` — persists runs to DB; `RunLogsRepo` batch-inserts stdout per run
+- ✅ New project routes (`GET/POST/PUT/DELETE /api/projects`, `PUT /api/projects/:id/config`)
+- ✅ All existing routes project-scoped + **Zod validation on every route**
+- ✅ Workspace materializer (`src/services/workspace-materializer.service.ts`) — lazy, per-project, atomic rename
+- ✅ `cypress.config.ts` specPattern updated to match `.workspace/**/cypress/e2e/**/*.feature`
+- ✅ Import script (`npm run import-tests`) — seeds existing `.feature` files into DB (idempotent)
+- ✅ CORS: both `localhost:4200` and `localhost:4300` allowed; Express 5 preflight fixed
+- ✅ UI: Projects page, create dialog, project switcher in toolbar
+- ✅ UI: Library, Chat, Runner all use `activeProjectId` from signal + localStorage
+- ✅ Smoke tested: create project → AI chat → save test → run test → DB-backed ✅
+
+**Bugs fixed during Phase A:**
+- `SequelizeUnknownConstraintError` on `alter:true` → fixed with `alter: { drop: false }`
+- `toISOString()` on null (`Message.createdAt`) → `@CreatedAt` doesn't work with `timestamps:false`; fixed with `defaultValue: DataType.NOW` + null-safe fallback
+- Cypress `Can't find spec` → `specPattern` only had `cypress/e2e/**`; added `.workspace/**/cypress/e2e/**` glob
+- `z.record(z.unknown())` Zod v4 requires 2 args → fixed to `z.record(z.string(), z.unknown())`
+
+---
+
 ## 3. Pending Work — Critical Path to MVP 🔴
 
-### Phase 5 — SQLite Persistence
-**Goal:** replace in-memory stores so conversations + runs survive backend restart.
+### Phase B — MinIO Integration (POSTGRES-MIGRATION-PLAN.md §Phase B)
+**Goal:** All run artifacts (video, screenshots) stored in MinIO; UI plays back via signed URLs.
 
-- Apply `schema.sql` from PLAN.md Section 5
-- `db/migrate.ts` runs on startup
-- Replace `ConversationStore` and `RunnerService` in-memory maps with SQLite-backed implementations
-- Persist runs after they finish; conversations as messages flow
-- Manifest table populated when tests are saved (so library shows source/createdBy)
-
-**Effort:** 1 session.
-
-### Phase 6 — File Upload + Parser
-**Goal:** tester uploads CSV/Excel of manual test cases → AI generates one at a time → batch save mode.
-
-- multer middleware (already installed)
-- Parser service (papaparse + xlsx; both already in package.json)
-- `/uploads` endpoints (POST upload, GET cases)
-- `/uploads/:id/cases/:caseId/start-chat` seeds a chat with the case content
-- New page `/upload` — drop zone + parsed list + per-case chat link + bulk-save action
+- `services/storage/storage.interface.ts` + `minio.storage.ts` + `local-fs.storage.ts` (env switch)
+- After-run hook: upload `.test-studio/runs/<runId>/` → `run_artifacts` rows → delete local copy
+- `GET /runs/:id/video` and `/screenshots/*` → 302 to presigned URL
+- `GET /runs/:id/artifacts` → list with presigned URLs
+- MinIO + bucket-init service in docker-compose
+- UI: video `<video>` + screenshot grid already URL-driven; just needs signed URL source
 
 **Effort:** 1.5 sessions.
 
-### Phase 7 — Studio Authentication (Keycloak)
-**Goal:** only logged-in users access Studio.
+### Phase C — Chat Image Attachments (POSTGRES-MIGRATION-PLAN.md §Phase C)
+**Goal:** Tester can paste/drop an image in chat → AI sees it (multimodal).
 
-- Backend JWT middleware (validate Bearer)
-- `keycloak-angular` integration in studio-ui
-- Auth guard on routes; redirect on 401
-- User chip in toolbar
-- `created_by` populated from token
+- `POST /api/conversations/:id/attachments` (multipart) → MinIO upload → `chat_attachments` row
+- `POST /api/conversations/:id/messages` accepts `attachmentIds[]`
+- Provider-specific image content blocks (Anthropic `image` / OpenAI `image_url`)
+- UI: paperclip icon in composer, thumbnail preview chip, send with message
+
+**Effort:** 1.5 sessions.
+
+### Phase D — Test Detail / Run History Page
+**Goal:** click library card → detail view with code, run history, version timeline.
+
+- `GET /tests/:id` full details (code + run history + tags)
+- `DELETE /tests/:id` archives
+- New page `/test/:id` — code, runs, versions, actions
+- `GET /runs/:id/logs` paginated replay from `run_logs` table (already implemented ✅)
 
 **Effort:** 1 session.
 
-### Phase 8 — Test Detail / History Page
-**Goal:** click a library card → detail view with full code, run history, version timeline.
+### Phase E — Docker Compose (POSTGRES-MIGRATION-PLAN.md §10)
+**Goal:** `docker compose up` brings up full stack (Postgres + MinIO + server + UI).
 
-- `GET /tests/:id` returns full details (code + run history + tags)
-- `DELETE /tests/:id` archives (status = archived)
-- New page `/test/:id` — TestDetailPage with sections: code, runs, versions, actions
-- Library card → navigates here on title click (not on action button)
+- `studio-server/Dockerfile` (Node + xvfb + Cypress deps)
+- `studio-ui/Dockerfile` (multi-stage: build + nginx)
+- Root `docker-compose.yml` (postgres, minio, minio-init, studio-server, studio-ui)
+- `MIGRATE_ON_BOOT=true` env flag for schema auto-sync on container start
 
 **Effort:** 1 session.
 
@@ -157,11 +182,12 @@
 
 | Phase | What | Effort |
 |---|---|---|
-| 9 | **AI Debug Loop** — failed test → "Debug with AI" button → chat opens with run logs as context | 1 |
-| 10 | **Inline AI panel in Edit page** — side drawer chat instead of redirect (keeps editor visible) | 0.5 |
-| 11 | **Versioning UI** — every save = new version, timeline on detail page, diff viewer, rollback | 1 |
-| 12 | **Real Auth Adapter** — `cy.loginAs` actually hits Keycloak token endpoint (currently a placeholder) | 1 |
-| 13 | **Library filters / search / tags** — multi-select, bulk run, archive, search by name/tag | 0.5 |
+| F | **File Upload + Parser** — CSV/Excel → AI batch test generation | 1.5 |
+| G | **Studio Authentication (Keycloak)** — JWT middleware, auth guard, `created_by` from token | 1 |
+| H | **AI Debug Loop** — failed run → "Debug with AI" → chat with run logs as context | 1 |
+| I | **Inline AI panel in Edit page** — side drawer (keeps editor visible) | 0.5 |
+| J | **Versioning UI** — timeline, diff viewer, rollback to previous version | 1 |
+| K | **Library filters / search / tags** — multi-select, bulk run, archive, search | 0.5 |
 
 ---
 
@@ -169,11 +195,10 @@
 
 | Phase | What |
 |---|---|
-| 14 | Extract as `@yourname/test-studio-kit` npm package |
-| 15 | `create-test-studio-app` CLI for new projects |
-| 16 | MinIO/S3 storage swap (when artifacts hit ~10 GB or multi-user) |
-| 17 | Multi-user collaboration (live presence + concurrent edits) |
-| 18 | CI/CD hooks (GitHub Actions / Bitbucket Pipelines) |
+| L | Extract as `@yourname/test-studio-kit` npm package |
+| M | `create-test-studio-app` CLI for new projects |
+| N | Multi-user collaboration (live presence + concurrent edits) |
+| O | CI/CD hooks (GitHub Actions / Bitbucket Pipelines) |
 
 ---
 
@@ -184,12 +209,9 @@
 | TypeScript 6 breaks Cypress ts-node | Pinned `typescript@5.6.3` |
 | Node 23 engine warning | Non-blocking, upgrade to 24 LTS later |
 | `tsx watch` does NOT restart on `.env` change | Manually kill + restart backend after editing `.env` |
-| Express 5 `res.sendFile` rejects `.test-studio/` paths | Added `{ dotfiles: 'allow' }` for screenshots; switched video to manual stream with Range |
-| In-memory stores lose state on restart | SQLite migration in Phase 5 |
 | Anthropic credits at $0 | Switch model picker to a `gpt-*` choice — OpenAI key works independently |
-| Lucide icons render at default 24px ignoring Tailwind `h-/w-` classes on parent | Global CSS in `styles.css` makes inner SVG fill the parent box → `h-4 w-4` etc. now control size |
-| `@angular/material` removal still left `provideAnimationsAsync` in `app.config.ts` | Removed it — caused build error `Could not resolve "@angular/animations/browser"` |
-| `@else if (x; as y)` syntax | Angular only allows `as` on the primary `@if` block — call the signal twice instead |
+| Lucide icons render at default 24px ignoring Tailwind `h-/w-` classes on parent | Global CSS in `styles.css` makes inner SVG fill the parent box |
+| Active run SSE stream dies on server restart | Runs still persist in DB; SSE replay available via `GET /runs/:id/logs` |
 
 ---
 
@@ -197,12 +219,11 @@
 
 | Goal | Sessions remaining |
 |---|---|
-| **MVP usable by 1 tester** | ~4 sessions (Phases 5–8) |
-| **Production-ready for QA team** | +3 sessions (Phases 9–13) |
-| **Portable kit + ecosystem** | +5.5 sessions (Phases 14–18) |
-| **Total to "complete"** | **~12.5 sessions** including current |
-
-Approximately **5–7 more focused work sessions** to reach truly usable MVP.
+| **MVP usable by 1 tester** | ~3 sessions (Phases B, C, D) |
+| **Deployable via Docker** | +1 session (Phase E) |
+| **Production-ready for QA team** | +4.5 sessions (Phases F–K) |
+| **Portable kit + ecosystem** | +3 sessions (Phases L–O) |
+| **Total to "complete"** | **~11.5 sessions** from here |
 
 ---
 
