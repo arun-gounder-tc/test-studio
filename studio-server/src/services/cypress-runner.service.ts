@@ -6,6 +6,7 @@ import { paths } from '../utils/paths.js';
 import { RunsRepo } from '../db/repositories/runs.repo.js';
 import { RunLogsRepo } from '../db/repositories/run-logs.repo.js';
 import { Run } from '../db/models/run.model.js';
+import { storage } from './storage/index.js';
 
 export type RunEventType =
   | 'start'
@@ -209,6 +210,13 @@ class RunnerService extends EventEmitter {
         screenshotsDir: record.screenshotsDir,
       });
       this.processes.delete(dbRun.id);
+
+      // Upload artifacts in background (best-effort) so SSE 'finish' fires immediately
+      setImmediate(() => {
+        this.uploadArtifacts(record).catch((err) => {
+          console.warn(`[run ${record.id}] uploadArtifacts failed:`, err instanceof Error ? err.message : err);
+        });
+      });
     });
 
     child.on('error', async (err) => {
@@ -326,6 +334,123 @@ class RunnerService extends EventEmitter {
     record.events.push(event);
     this.emit(`run:${record.id}`, event);
     this.emit('any', { runId: record.id, event });
+  }
+
+  /**
+   * Upload run artifacts (video, screenshots, cucumber report) to object storage,
+   * write run_artifacts rows, and (by default) delete the local copies.
+   * Best-effort: failures are logged but don't fail the run.
+   */
+  private async uploadArtifacts(record: RunRecord): Promise<void> {
+    const keepLocal = process.env.KEEP_LOCAL_ARTIFACTS === 'true';
+    const tasks: Promise<void>[] = [];
+
+    if (record.videoPath && fs.existsSync(record.videoPath)) {
+      const videoPath = record.videoPath;
+      tasks.push((async () => {
+        try {
+          const stat = fs.statSync(videoPath);
+          const key = `run-artifacts/${record.id}/video.mp4`;
+          await storage.putObject({
+            key,
+            body: fs.createReadStream(videoPath),
+            contentType: 'video/mp4',
+            sizeBytes: stat.size,
+          });
+          await RunsRepo.attachArtifact({
+            runId: record.id,
+            kind: 'video',
+            minioKey: key,
+            contentType: 'video/mp4',
+            sizeBytes: stat.size,
+          });
+          if (!keepLocal) {
+            fs.unlinkSync(videoPath);
+            record.videoPath = null;
+          }
+        } catch (err) {
+          console.warn(`[run ${record.id}] video upload failed:`, err instanceof Error ? err.message : err);
+        }
+      })());
+    }
+
+    if (record.screenshotsDir && fs.existsSync(record.screenshotsDir)) {
+      const dir = record.screenshotsDir;
+      const files = fs.readdirSync(dir).filter((f) => /\.(png|jpe?g)$/i.test(f));
+      for (const filename of files) {
+        tasks.push((async () => {
+          try {
+            const filePath = path.join(dir, filename);
+            const stat = fs.statSync(filePath);
+            const ext = path.extname(filename).toLowerCase();
+            const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
+            const key = `run-artifacts/${record.id}/screenshots/${filename}`;
+            // 'Login -- failure (1).png' -> 'Login'
+            const scenarioName = filename
+              .replace(/\s*\(\d+\)/, '')
+              .replace(/\s*--.*$/, '')
+              .replace(/\.[a-z]+$/i, '')
+              .trim() || undefined;
+            await storage.putObject({
+              key,
+              body: fs.createReadStream(filePath),
+              contentType,
+              sizeBytes: stat.size,
+            });
+            await RunsRepo.attachArtifact({
+              runId: record.id,
+              kind: 'screenshot',
+              minioKey: key,
+              contentType,
+              sizeBytes: stat.size,
+              scenarioName,
+            });
+            if (!keepLocal) fs.unlinkSync(filePath);
+          } catch (err) {
+            console.warn(`[run ${record.id}] screenshot upload failed (${filename}):`, err instanceof Error ? err.message : err);
+          }
+        })());
+      }
+    }
+
+    const reportPath = path.join(paths.projectRoot, '.test-studio/last-run.json');
+    if (fs.existsSync(reportPath)) {
+      tasks.push((async () => {
+        try {
+          const stat = fs.statSync(reportPath);
+          const key = `run-artifacts/${record.id}/cucumber-report.json`;
+          await storage.putObject({
+            key,
+            body: fs.createReadStream(reportPath),
+            contentType: 'application/json',
+            sizeBytes: stat.size,
+          });
+          await RunsRepo.attachArtifact({
+            runId: record.id,
+            kind: 'report',
+            minioKey: key,
+            contentType: 'application/json',
+            sizeBytes: stat.size,
+          });
+        } catch (err) {
+          console.warn(`[run ${record.id}] report upload failed:`, err instanceof Error ? err.message : err);
+        }
+      })());
+    }
+
+    await Promise.all(tasks);
+
+    if (!keepLocal && record.screenshotsDir && fs.existsSync(record.screenshotsDir)) {
+      try {
+        const remaining = fs.readdirSync(record.screenshotsDir);
+        if (remaining.length === 0) {
+          fs.rmdirSync(record.screenshotsDir);
+          record.screenshotsDir = null;
+        }
+      } catch {
+        // non-fatal
+      }
+    }
   }
 
   subscribe(runId: string, listener: (event: RunEvent) => void): () => void {

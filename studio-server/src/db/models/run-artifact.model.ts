@@ -1,6 +1,6 @@
 import {
   Table, Column, Model, DataType, PrimaryKey, Default,
-  BelongsTo, ForeignKey, CreatedAt,
+  BelongsTo, ForeignKey,
 } from 'sequelize-typescript';
 import { Run } from './run.model.js';
 
@@ -34,8 +34,7 @@ export class RunArtifact extends Model {
   @Column({ field: 'scenario_name', type: DataType.TEXT })
   declare scenarioName: string | null;
 
-  @CreatedAt
-  @Column({ field: 'created_at', type: DataType.DATE })
+  @Column({ field: 'created_at', type: DataType.DATE, allowNull: false, defaultValue: DataType.NOW })
   declare createdAt: Date;
 
   @BelongsTo(() => Run)

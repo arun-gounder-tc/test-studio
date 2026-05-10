@@ -8,8 +8,10 @@ import { testsRouter } from './routes/tests.routes.js';
 import { runsRouter } from './routes/runs.routes.js';
 import { modelsRouter } from './routes/models.routes.js';
 import { projectsRouter } from './routes/projects.routes.js';
+import { storageRouter } from './routes/storage.routes.js';
 import { aiService } from './services/ai.service.js';
 import { initDB } from './db/sequelize.js';
+import { storage, storageDriver } from './services/storage/index.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 const STUDIO_UI_ORIGIN = process.env.STUDIO_UI_ORIGIN || 'http://localhost:4300';
@@ -51,6 +53,7 @@ app.use('/api/test-studio/conversations', conversationsRouter);
 app.use('/api/test-studio/tests', testsRouter);
 app.use('/api/test-studio/runs', runsRouter);
 app.use('/api/test-studio/models', modelsRouter);
+app.use('/api/test-studio/storage', storageRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.method} ${req.path} not found` });
@@ -62,6 +65,15 @@ async function bootstrap() {
   } catch (err) {
     console.error('❌ Database init failed:', err);
     console.warn('⚠️  Continuing without DB — in-memory fallback active.');
+  }
+
+  try {
+    await storage.ensureBucket();
+    const bucket = process.env.MINIO_BUCKET || 'test-studio';
+    console.log(`✅ Storage ready (driver=${storageDriver}, bucket=${bucket})`);
+  } catch (err) {
+    console.warn(`⚠️  Storage init failed (driver=${storageDriver}):`, err instanceof Error ? err.message : err);
+    console.warn('   Run artifacts will not upload until storage is reachable.');
   }
 
   app.listen(PORT, () => {

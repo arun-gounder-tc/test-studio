@@ -8,6 +8,14 @@ import { ProjectsRepo } from '../db/repositories/projects.repo.js';
 import { workspaceMaterializer } from '../services/workspace-materializer.service.js';
 import { paths } from '../utils/paths.js';
 import { parseOrFail, UuidParam, StartRunBody, ListRunsQuery, RunLogsQuery } from '../utils/zod.js';
+import { storage } from '../services/storage/index.js';
+
+const VIDEO_PRESIGN_TTL = 60 * 60;     // 60 min — must outlast longest plausible playback
+const DEFAULT_PRESIGN_TTL = 15 * 60;   // 15 min — screenshots, reports
+
+function presignTtlFor(kind: 'video' | 'screenshot' | 'report' | 'log-bundle'): number {
+  return kind === 'video' ? VIDEO_PRESIGN_TTL : DEFAULT_PRESIGN_TTL;
+}
 
 export const runsRouter = Router();
 
@@ -130,8 +138,24 @@ runsRouter.get('/:id/stream', async (req, res) => {
   req.on('close', () => unsubscribe());
 });
 
-runsRouter.get('/:id/video', (req, res) => {
-  const record = runnerService.get(req.params['id']);
+runsRouter.get('/:id/video', async (req, res) => {
+  const runId = req.params['id'];
+
+  // Prefer DB-backed artifact (post-upload, restart-safe)
+  try {
+    const artifacts = await RunsRepo.listArtifacts(runId);
+    const video = artifacts.find((a) => a.kind === 'video');
+    if (video) {
+      const url = await storage.getPresignedUrl(video.minioKey, { expiresInSec: VIDEO_PRESIGN_TTL });
+      res.redirect(302, url);
+      return;
+    }
+  } catch {
+    // fall through to local fallback
+  }
+
+  // Fallback: stream local file (active run, upload pending)
+  const record = runnerService.get(runId);
   if (!record?.videoPath || !fs.existsSync(record.videoPath)) {
     res.status(404).json({ error: 'Video not available' });
     return;
@@ -156,8 +180,28 @@ runsRouter.get('/:id/video', (req, res) => {
   }
 });
 
-runsRouter.get('/:id/screenshots', (req, res) => {
-  const record = runnerService.get(req.params['id']);
+runsRouter.get('/:id/screenshots', async (req, res) => {
+  const runId = req.params['id'];
+
+  // Prefer DB-backed artifacts
+  try {
+    const artifacts = await RunsRepo.listArtifacts(runId);
+    const shots = artifacts.filter((a) => a.kind === 'screenshot');
+    if (shots.length > 0) {
+      const files = await Promise.all(shots.map(async (a) => ({
+        name: path.basename(a.minioKey),
+        url: await storage.getPresignedUrl(a.minioKey, { expiresInSec: DEFAULT_PRESIGN_TTL }),
+        scenarioName: a.scenarioName,
+      })));
+      res.json({ files });
+      return;
+    }
+  } catch {
+    // fall through
+  }
+
+  // Fallback: local dir listing
+  const record = runnerService.get(runId);
   if (!record?.screenshotsDir || !fs.existsSync(record.screenshotsDir)) {
     res.json({ files: [] });
     return;
@@ -172,13 +216,50 @@ runsRouter.get('/:id/screenshots', (req, res) => {
   });
 });
 
-runsRouter.get('/:id/screenshots/:filename', (req, res) => {
-  const record = runnerService.get(req.params['id']);
-  if (!record?.screenshotsDir) { res.status(404).end(); return; }
+runsRouter.get('/:id/screenshots/:filename', async (req, res) => {
+  const runId = req.params['id'];
   const safe = path.basename(req.params['filename']);
+
+  // Prefer DB-backed artifact
+  try {
+    const artifacts = await RunsRepo.listArtifacts(runId);
+    const shot = artifacts.find((a) => a.kind === 'screenshot' && path.basename(a.minioKey) === safe);
+    if (shot) {
+      const url = await storage.getPresignedUrl(shot.minioKey, { expiresInSec: DEFAULT_PRESIGN_TTL });
+      res.redirect(302, url);
+      return;
+    }
+  } catch {
+    // fall through
+  }
+
+  // Fallback: local file
+  const record = runnerService.get(runId);
+  if (!record?.screenshotsDir) { res.status(404).end(); return; }
   const full = path.join(record.screenshotsDir, safe);
   if (!fs.existsSync(full)) { res.status(404).end(); return; }
   res.sendFile(path.resolve(full), { dotfiles: 'allow' });
+});
+
+/** GET /runs/:id/artifacts — typed list with presigned URLs (preferred for new UIs) */
+runsRouter.get('/:id/artifacts', async (req, res) => {
+  const params = parseOrFail(res, UuidParam, req.params);
+  if (!params) return;
+  try {
+    const rows = await RunsRepo.listArtifacts(params.id);
+    const artifacts = await Promise.all(rows.map(async (a) => ({
+      id: a.id,
+      kind: a.kind,
+      contentType: a.contentType,
+      sizeBytes: Number(a.sizeBytes),
+      scenarioName: a.scenarioName,
+      url: await storage.getPresignedUrl(a.minioKey, { expiresInSec: presignTtlFor(a.kind) }),
+      createdAt: a.createdAt,
+    })));
+    res.json({ artifacts });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list artifacts' });
+  }
 });
 
 /** GET /runs/:id/logs?after=-1&limit=500 */

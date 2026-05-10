@@ -2,7 +2,7 @@
 
 > **Companion to `TEST-STUDIO-PLAN.md`.** Plan = architecture/decisions. This file = "what's done, what's left, in what order."
 >
-> **Last updated:** 2026-05-10 (Phase A — Postgres + Multi-project complete ✅)
+> **Last updated:** 2026-05-10 (Phase B — MinIO Integration complete ✅)
 
 ---
 
@@ -10,12 +10,12 @@
 
 | Item | Value |
 |---|---|
-| Overall state | **Phases 1–4 + Edit + Headed + Multi-provider AI + Tailwind UI + Phase A (Postgres + Multi-project) complete** |
-| Last verified working | Multi-project CRUD, project switcher, DB-backed library/tests/runs/conversations, AI chat → save test → run test (workspace materialization), SSE log streaming, video + screenshots, Zod validation on all routes |
+| Overall state | **Phases 1–4 + Edit + Headed + Multi-provider AI + Tailwind UI + Phase A (Postgres + Multi-project) + Phase B (MinIO/Storage) complete** |
+| Last verified working | Run-end pipeline: video + cucumber report uploaded to object storage, `run_artifacts` rows written, local copies cleaned up, `/runs/:id/artifacts` returns presigned URLs, legacy `/video` and `/screenshots` 302-redirect to storage; restart-safe replay from DB-backed URLs |
 | Blocker right now | None |
-| Estimated to MVP | **~3 sessions** (Phases B, C, D from POSTGRES-MIGRATION-PLAN.md) |
-| Estimated to production-ready | ~6 sessions total |
-| Estimated to portable kit | ~9 sessions total |
+| Estimated to MVP | **~2 sessions** (Phases C, D from POSTGRES-MIGRATION-PLAN.md) |
+| Estimated to production-ready | ~5 sessions total |
+| Estimated to portable kit | ~8 sessions total |
 
 ---
 
@@ -132,19 +132,34 @@
 
 ---
 
+### Phase B (from POSTGRES-MIGRATION-PLAN.md) — MinIO / Object Storage ✅ COMPLETE
+**Completed:** 2026-05-10
+**Plan doc:** `docs/PHASE-B-MINIO-PLAN.md`
+
+- ✅ `Storage` interface in `studio-server/src/services/storage/`
+- ✅ `MinioStorage` (S3-compatible, uses `minio` v8 npm SDK) — `putObject`, `getPresignedUrl`, `objectExists`, `deleteObject`, `getObjectStream`, `ensureBucket`
+- ✅ `LocalFsStorage` dev fallback — writes to `.test-studio/storage/`, presign URLs go through `/api/test-studio/storage/*` proxy with Range support for video
+- ✅ Singleton selection via `STORAGE_DRIVER=minio|local` env (default `minio`)
+- ✅ Boot hook: `storage.ensureBucket()` after sequelize init; warning-only on failure (run still works)
+- ✅ `cypress-runner.service.ts.uploadArtifacts()` — kicks off via `setImmediate` after `finish` event so SSE close is not delayed
+- ✅ Uploads: `video.mp4` (kind=video), `screenshots/*.png|jpg` (kind=screenshot, scenario name parsed from filename), `cucumber-report.json` (kind=report)
+- ✅ Per-file `RunsRepo.attachArtifact()` row written; local files deleted after upload (toggle: `KEEP_LOCAL_ARTIFACTS=true`)
+- ✅ Legacy `GET /runs/:id/video`, `/runs/:id/screenshots`, `/runs/:id/screenshots/:filename` → DB-first lookup → 302 to presigned URL; falls back to in-memory local stream for active runs whose upload hasn't completed
+- ✅ New `GET /runs/:id/artifacts` — typed list with presigned URLs (kind-specific TTL: 60min video, 15min screenshots/report)
+- ✅ `.env.example` updated with `STORAGE_DRIVER`, `MINIO_*`, `KEEP_LOCAL_ARTIFACTS`, `SERVER_BASE_URL` — points at externally deployed MinIO (no local Docker stack)
+- ✅ Smoke tested end-to-end: trigger run → artifact rows + storage files → `/artifacts` returns URLs → `/video` 302 → file plays back; restart server → past run still streams
+
+**Bugs fixed during Phase B:**
+- `RunArtifact.createdAt` always `null` → same `@CreatedAt` + `timestamps:false` issue as Phase A's `Message`; fixed with `defaultValue: DataType.NOW`
+
+**Notes:**
+- UI did not require any change — 302 redirect makes the cutover transparent. Future Phase D detail page will use the typed `/artifacts` endpoint.
+- LocalFsStorage proxy is dev-only. Production must use MinIO/S3 — no signature validation on the proxy URL by design (documented in plan §11).
+- Best-effort upload: MinIO down → run completes successfully, warning logged, no artifact rows. UI falls back to local stream until next run.
+
+---
+
 ## 3. Pending Work — Critical Path to MVP 🔴
-
-### Phase B — MinIO Integration (POSTGRES-MIGRATION-PLAN.md §Phase B)
-**Goal:** All run artifacts (video, screenshots) stored in MinIO; UI plays back via signed URLs.
-
-- `services/storage/storage.interface.ts` + `minio.storage.ts` + `local-fs.storage.ts` (env switch)
-- After-run hook: upload `.test-studio/runs/<runId>/` → `run_artifacts` rows → delete local copy
-- `GET /runs/:id/video` and `/screenshots/*` → 302 to presigned URL
-- `GET /runs/:id/artifacts` → list with presigned URLs
-- MinIO + bucket-init service in docker-compose
-- UI: video `<video>` + screenshot grid already URL-driven; just needs signed URL source
-
-**Effort:** 1.5 sessions.
 
 ### Phase C — Chat Image Attachments (POSTGRES-MIGRATION-PLAN.md §Phase C)
 **Goal:** Tester can paste/drop an image in chat → AI sees it (multimodal).
@@ -219,11 +234,11 @@
 
 | Goal | Sessions remaining |
 |---|---|
-| **MVP usable by 1 tester** | ~3 sessions (Phases B, C, D) |
+| **MVP usable by 1 tester** | ~2 sessions (Phases C, D) |
 | **Deployable via Docker** | +1 session (Phase E) |
 | **Production-ready for QA team** | +4.5 sessions (Phases F–K) |
 | **Portable kit + ecosystem** | +3 sessions (Phases L–O) |
-| **Total to "complete"** | **~11.5 sessions** from here |
+| **Total to "complete"** | **~10.5 sessions** from here |
 
 ---
 
@@ -286,3 +301,4 @@ Resolve at start of each phase.
 | 2026-05-09 | **Refine→Save overwrites the original .feature file** instead of creating a new uniqued path. ConversationStore tracks `originatingTestId` (set by `/refine-conversation` route); `/tests/save` reads it and passes `overwriteFilePath` to `testWriter`. Response includes `updatedExisting: true`. UI shows "Confirm & Update" + "Updated → path" toast in refine mode. | Previous behaviour created `xxx-2.feature` for every refine save — confusing and wasteful. Refine flow is meant to mutate the existing test, not fork it. |
 | 2026-05-09 | In refine mode, **"Start over" button replaced with "Back to Edit"** (navigates to `/edit/:id`). | "Start over" cleared the seeded chat with the existing feature content — destructive in a refine context. Back-to-edit is the natural exit. |
 | 2026-05-09 | **Removed Angular Material entirely; switched UI to Tailwind CSS 4 + lucide-angular icons** with a zinc + indigo light theme. New `ToastService`/`ToastHostComponent` replaces `MatSnackBar`. `@angular/cdk/dialog` replaces `MatDialog`. All page templates and stylesheets inlined into their `.ts` files (no `.html` / `.scss` per page). Inter font, JetBrains Mono for code. | Wanted a modern minimal aesthetic; Material's defaults felt heavy and styling against them was painful. Tailwind utilities + small CDK primitives = much lower visual surface area to maintain. Bundle dropped from ~2 MB to ~1.56 MB initial. |
+| 2026-05-10 | **Phase B — MinIO/Object Storage:** `Storage` interface with `MinioStorage` (S3-compatible) + `LocalFsStorage` (dev fallback) impls; selected by `STORAGE_DRIVER`. Run artifacts (video, screenshots, cucumber report) auto-upload after `child.on('close')` via `setImmediate` so SSE `finish` is not delayed. DB row per artifact in `run_artifacts`; local copies deleted (toggleable). Legacy `/runs/:id/video` and `/screenshots/*` 302-redirect to presigned URLs (zero UI churn); new typed `/runs/:id/artifacts` endpoint for future Phase D detail page. Single bucket `test-studio` with prefixes (matches plan §6). | Multi-instance + restart-safe playback; UI stays unchanged via redirects. Local fallback lets contributors run without Docker. Best-effort upload (don't fail run on storage error) chosen over strict consistency for MVP. |
