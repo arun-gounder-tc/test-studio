@@ -2,7 +2,7 @@
 
 > **Companion to `TEST-STUDIO-PLAN.md`.** Plan = architecture/decisions. This file = "what's done, what's left, in what order."
 >
-> **Last updated:** 2026-05-10 (Phase B — MinIO Integration complete ✅)
+> **Last updated:** 2026-05-11 (Phase C complete ✅; Phase D & E partial; UI redesigned with horizontal nav + mobile responsive; Firebase Hosting live)
 
 ---
 
@@ -10,12 +10,13 @@
 
 | Item | Value |
 |---|---|
-| Overall state | **Phases 1–4 + Edit + Headed + Multi-provider AI + Tailwind UI + Phase A (Postgres + Multi-project) + Phase B (MinIO/Storage) complete** |
-| Last verified working | Run-end pipeline: video + cucumber report uploaded to object storage, `run_artifacts` rows written, local copies cleaned up, `/runs/:id/artifacts` returns presigned URLs, legacy `/video` and `/screenshots` 302-redirect to storage; restart-safe replay from DB-backed URLs |
+| Overall state | **Phases 1–4 + Edit + Headed + Multi-provider AI + Tailwind UI + Phase A (Postgres + Multi-project) + Phase B (MinIO/Storage) + Phase C (Chat Attachments) complete. Phase D log-bundle replay done (test-detail page pending). Phase E server container + Firebase Hosting live (full docker-compose pending).** |
+| Live deployment | **UI:** https://test-studio-fc339.web.app (Firebase Hosting) · **Server:** production backend container |
+| Last verified working | Responsive UI revamp (horizontal nav + hamburger + mobile cards for history table), Phase C chat-image attachments end-to-end, log-bundle replay from `run_logs` / archived bundles, Firebase Hosting deploy |
 | Blocker right now | None |
-| Estimated to MVP | **~2 sessions** (Phases C, D from POSTGRES-MIGRATION-PLAN.md) |
-| Estimated to production-ready | ~5 sessions total |
-| Estimated to portable kit | ~8 sessions total |
+| Estimated to MVP | **~0.5 session** (Phase D test-detail page) |
+| Estimated to production-ready | ~4 sessions total |
+| Estimated to portable kit | ~7 sessions total |
 
 ---
 
@@ -159,37 +160,62 @@
 
 ---
 
-## 3. Pending Work — Critical Path to MVP 🔴
+### Phase C — Chat Image Attachments ✅ COMPLETE
+**Completed:** 2026-05-10
+**Commit:** `50b48c2 feat(phase-c): chat image attachments for AI vision`
 
-### Phase C — Chat Image Attachments (POSTGRES-MIGRATION-PLAN.md §Phase C)
-**Goal:** Tester can paste/drop an image in chat → AI sees it (multimodal).
+- ✅ `ChatAttachment` Sequelize model (`studio-server/src/db/models/chat-attachment.model.ts`) — kind enum (image|file), minioKey, contentType, sizeBytes, width/height
+- ✅ `POST /api/conversations/:id/attachments` (multipart via multer) → MinIO upload → `chat_attachments` row
+- ✅ `attachments.repo.ts` — create, link-to-message, list-by-conversation/message
+- ✅ Provider-specific image content blocks:
+  - Anthropic: `{ type: 'image', source: { ... } }` in `anthropic.provider.ts`
+  - OpenAI: `{ type: 'image_url', image_url: { url } }` in `openai.provider.ts`
+- ✅ UI composer (`case-chat.page.ts`): paperclip icon, hidden file input, `pendingAttachments` + `uploadingFiles` signals, thumbnail chips with × to remove, paste-from-clipboard support
+- ✅ Sent message bubbles render image thumbnails (`m.attachments` loop)
 
-- `POST /api/conversations/:id/attachments` (multipart) → MinIO upload → `chat_attachments` row
-- `POST /api/conversations/:id/messages` accepts `attachmentIds[]`
-- Provider-specific image content blocks (Anthropic `image` / OpenAI `image_url`)
-- UI: paperclip icon in composer, thumbnail preview chip, send with message
+---
 
-**Effort:** 1.5 sessions.
+### Phase D — Test Detail / Run History ⚠️ PARTIAL
+**Partial completion:** 2026-05-10
+**Commit:** `a68052e feat(phase-d): log-bundle compaction + replay UI`
 
-### Phase D — Test Detail / Run History Page
-**Goal:** click library card → detail view with code, run history, version timeline.
+**Done:**
+- ✅ `GET /api/runs/:id/logs` — DB-backed paginated reader with fallback to `log-bundle` archive when run_logs are pruned
+- ✅ `RunsRepo` returns `source: 'log-bundle' | 'run_logs'` so UI can label live vs archived
+- ✅ History page (`pages/history/history.page.ts`) — expandable rows show archived video/screenshots/report + colored stdout/stderr/event logs
+- ✅ Compound DB indexes — `(project_id, started_at)`, `(test_id, started_at)`, `(run_id, sequence)` verified in `studio-server/src/db/sequelize.ts`
 
-- `GET /tests/:id` full details (code + run history + tags)
-- `DELETE /tests/:id` archives
-- New page `/test/:id` — code, runs, versions, actions
-- `GET /runs/:id/logs` paginated replay from `run_logs` table (already implemented ✅)
+**Pending:**
+- ❌ `GET /api/tests/:id` — dedicated test-detail endpoint (code + run history per test + tags + version timeline)
+- ❌ `DELETE /api/tests/:id` — archive endpoint
+- ❌ UI route `/test/:id` and detail page component (currently only `/edit/:testId`, `/run/:testId`, `/history` exist)
 
-**Effort:** 1 session.
+---
 
-### Phase E — Docker Compose (POSTGRES-MIGRATION-PLAN.md §10)
-**Goal:** `docker compose up` brings up full stack (Postgres + MinIO + server + UI).
+### Phase E — Containerization + Deploy ⚠️ PARTIAL
+**Partial completion:** 2026-05-11
+**Commit:** `4c9470b feat(phase-e): containerize backend + Firebase config + env-based API URL`
+**Live UI:** https://test-studio-fc339.web.app
 
-- `studio-server/Dockerfile` (Node + xvfb + Cypress deps)
-- `studio-ui/Dockerfile` (multi-stage: build + nginx)
-- Root `docker-compose.yml` (postgres, minio, minio-init, studio-server, studio-ui)
-- `MIGRATE_ON_BOOT=true` env flag for schema auto-sync on container start
+**Done:**
+- ✅ `studio-server/Dockerfile` — node:20-bullseye-slim, Cypress system deps, tini PID reaper, pre-fetched browser bundle, entrypoint wraps server
+- ✅ Root `docker-compose.yml` exists (studio-server service only)
+- ✅ Auto-migrate on boot via `sequelize.sync({ alter: { drop: false } })` + idempotent constraint/index migrations in `initDB()`
+- ✅ Firebase Hosting for UI — `studio-ui/firebase.json` with SPA rewrite + immutable asset caching + index.html no-store
+- ✅ Production CORS configured via `STUDIO_UI_ORIGIN` env (commit `3259727`)
+- ✅ Env-based `apiBaseUrl` in `environments/environment.prod.ts` (commit `16d25b2`)
 
-**Effort:** 1 session.
+**Pending:**
+- ❌ `studio-ui/Dockerfile` (multi-stage build → nginx serve) — currently using Firebase Hosting instead, but for self-hosted compose this is required
+- ❌ Full `docker-compose.yml` services: `postgres`, `minio`, `minio-init`, `studio-ui`, nginx reverse proxy
+- ❌ `nginx.conf` for self-hosted: SPA fallback + `/api/*` proxy to studio-server
+- ❌ `.env.example` documenting all required compose env vars
+
+---
+
+### Phase D-rest + Phase E-rest — Remaining critical path 🔴
+
+**Effort to close MVP:** ~1 session (test-detail page + finish docker-compose for portable self-host).
 
 ---
 
@@ -234,11 +260,11 @@
 
 | Goal | Sessions remaining |
 |---|---|
-| **MVP usable by 1 tester** | ~2 sessions (Phases C, D) |
-| **Deployable via Docker** | +1 session (Phase E) |
+| **MVP usable by 1 tester** | ~0.5 session (Phase D test-detail page) |
+| **Self-host via Docker Compose** | +0.5 session (Phase E completion: ui Dockerfile + postgres/minio/nginx services) |
 | **Production-ready for QA team** | +4.5 sessions (Phases F–K) |
 | **Portable kit + ecosystem** | +3 sessions (Phases L–O) |
-| **Total to "complete"** | **~10.5 sessions** from here |
+| **Total to "complete"** | **~8.5 sessions** from here |
 
 ---
 
