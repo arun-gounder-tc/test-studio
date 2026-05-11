@@ -10,5 +10,5 @@
  */
 export const environment = {
   production: true,
-  apiBaseUrl: 'https://<COOLIFY_BACKEND_URL>/api/test-studio',
+  apiBaseUrl: 'https://test-studio-be.undercontrol.in/api/test-studio',
 };
