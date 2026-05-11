@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, tap } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface Project {
   id: string;
@@ -22,7 +23,7 @@ const STORAGE_KEY = 'studio.activeProjectId';
 @Injectable({ providedIn: 'root' })
 export class ProjectsService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:3001/api/test-studio/projects';
+  private readonly baseUrl = `${environment.apiBaseUrl}/projects`;
 
   readonly activeProjectId = signal<string | null>(localStorage.getItem(STORAGE_KEY));
 

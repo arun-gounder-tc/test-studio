@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export type RunStatus = 'running' | 'passed' | 'failed' | 'errored';
 
@@ -77,7 +78,7 @@ export interface RunEvent {
 @Injectable({ providedIn: 'root' })
 export class RunsService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:3001/api/test-studio/runs';
+  private readonly baseUrl = `${environment.apiBaseUrl}/runs`;
 
   start(testId: string, opts: { headed?: boolean; projectId?: string } = {}): Observable<RunStartResponse> {
     return this.http.post<RunStartResponse>(this.baseUrl, { testId, headed: !!opts.headed, projectId: opts.projectId });

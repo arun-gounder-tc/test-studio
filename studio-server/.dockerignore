@@ -1,0 +1,48 @@
+# ---------- Dependencies ----------
+node_modules/
+
+# ---------- Build outputs ----------
+dist/
+build/
+*.tsbuildinfo
+
+# ---------- Secrets ----------
+.env
+.env.local
+*.env
+
+# ---------- Runtime caches (regenerated inside container on first run) ----------
+.workspace/
+.test-studio/runs/
+.test-studio/uploads/
+.test-studio/storage/
+.test-studio/last-run.json
+.test-studio/*.db
+.test-studio/*.db-journal
+
+# ---------- Cypress runtime artifacts ----------
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
+
+# ---------- Logs ----------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---------- OS / editor ----------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# ---------- Docker / git ----------
+Dockerfile
+.dockerignore
+.git/
+.gitignore
+
+# ---------- Misc ----------
+README.md
+docs/

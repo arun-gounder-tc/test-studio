@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export type ProviderId = 'anthropic' | 'openai';
 
@@ -20,7 +21,7 @@ export interface ModelsResponse {
 @Injectable({ providedIn: 'root' })
 export class ModelsService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:3001/api/test-studio';
+  private readonly baseUrl = environment.apiBaseUrl;
   private readonly STORAGE_KEY = 'studio.selectedModel';
 
   list(): Observable<ModelsResponse> {

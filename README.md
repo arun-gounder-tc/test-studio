@@ -113,6 +113,70 @@ cd studio-server && CY_USE_BASE_URL=1 npm run cy:run -- --spec cypress/e2e/featu
 
 ---
 
+## Deployment
+
+The repo is two independently-deployable units:
+
+### Backend → Coolify (Docker)
+
+`studio-server/Dockerfile` produces a self-contained image with Node, Cypress,
+Chromium dependencies, and `xvfb` baked in. Coolify auto-detects the Dockerfile
+when you point it at this repo (with `studio-server/` as the build context).
+
+**Required env vars on Coolify** (paste from your local `studio-server/.env`):
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-proj-...
+DATABASE_URL=postgres://...
+MINIO_ENDPOINT=https://minio.undercontrol.in
+MINIO_ACCESS_KEY=...
+MINIO_SECRET_KEY=...
+MINIO_BUCKET=test-studio
+STORAGE_DRIVER=minio
+STUDIO_UI_ORIGIN=https://<your-firebase-app>.web.app
+DEFAULT_MODEL=gpt-4o-mini
+NODE_ENV=production
+```
+
+`STUDIO_UI_ORIGIN` is the **frontend's public URL** (Firebase hosting URL).
+CORS only allows that origin + localhost.
+
+**Verify locally before pushing** (optional):
+```bash
+docker compose --env-file studio-server/.env up --build
+curl http://localhost:3001/api/test-studio/health   # → {"ok":true,...}
+```
+
+### Frontend → Firebase Hosting
+
+1. Set the backend URL once Coolify gives you the public domain — edit
+   `studio-ui/src/environments/environment.prod.ts` and replace
+   `<COOLIFY_BACKEND_URL>` with the actual host (no trailing slash, keep
+   the `/api/test-studio` suffix).
+
+2. Set the Firebase project ID — edit `studio-ui/.firebaserc` and replace
+   `<YOUR_FIREBASE_PROJECT_ID>`.
+
+3. Build + deploy:
+   ```bash
+   cd studio-ui
+   npm run build                # writes dist/studio-ui/browser/
+   npx firebase login           # one-time
+   npx firebase deploy --only hosting
+   ```
+
+   Firebase prints the live URL. Paste that URL into the backend's
+   `STUDIO_UI_ORIGIN` env on Coolify, then redeploy the backend so CORS allows it.
+
+### Post-deploy smoke test
+
+- Open the Firebase URL — UI loads
+- Create a test in chat → save → run
+- Verify: video + screenshots appear from MinIO, history page replays old runs
+
+---
+
 ## Roadmap
 
 | Phase | Status | Deliverable |

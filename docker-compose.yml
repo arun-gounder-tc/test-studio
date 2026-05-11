@@ -1,0 +1,37 @@
+# Local full-stack smoke test for the Docker build.
+# Production deploy on Coolify uses studio-server/Dockerfile directly —
+# this file is just to verify the image builds and runs end-to-end.
+#
+# Usage:
+#   docker compose --env-file studio-server/.env up --build
+#   # → http://localhost:3001/api/test-studio/health should return ok:true
+
+services:
+  studio-server:
+    build:
+      context: ./studio-server
+      dockerfile: Dockerfile
+    image: test-studio/studio-server:local
+    container_name: test-studio-server
+    ports:
+      - "3001:3001"
+    environment:
+      # Required — pass these via `--env-file` or your shell env
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DATABASE_URL: ${DATABASE_URL:-}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-}
+      MINIO_BUCKET: ${MINIO_BUCKET:-test-studio}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-minio}
+      STUDIO_UI_ORIGIN: ${STUDIO_UI_ORIGIN:-http://localhost:4200}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-gpt-4o-mini}
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/test-studio/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped

@@ -257,8 +257,8 @@ interface ExpandedLogs {
                           </header>
                           @if (logsState().loading) {
                             <p class="p-3 text-xs text-zinc-500">Loading logs…</p>
-                          } @else if (logsState().error; as err) {
-                            <p class="p-3 text-xs text-red-400">{{ err }}</p>
+                          } @else if (logsState().error) {
+                            <p class="p-3 text-xs text-red-400">{{ logsState().error }}</p>
                           } @else if (logsState().lines.length === 0) {
                             <p class="p-3 text-xs text-zinc-500">No logs captured.</p>
                           } @else {

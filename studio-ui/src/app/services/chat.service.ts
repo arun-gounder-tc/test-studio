@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface ChatAttachment {
   id: string;
@@ -75,7 +76,7 @@ export interface SaveResponse {
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:3001/api/test-studio';
+  private readonly baseUrl = environment.apiBaseUrl;
 
   startConversation(projectId?: string): Observable<ConversationStart> {
     return this.http.post<ConversationStart>(`${this.baseUrl}/conversations`, projectId ? { projectId } : {});
