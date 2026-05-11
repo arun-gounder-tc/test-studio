@@ -20,8 +20,12 @@ import {
   Save,
   RefreshCcw,
   MessageCircleQuestion,
+  Paperclip,
+  X as XIcon,
+  Image as ImageIcon,
 } from 'lucide-angular';
 import {
+  ChatAttachment,
   ChatMessage,
   ChatService,
   Generation,
@@ -164,6 +168,15 @@ interface DisplayMessage extends ChatMessage {
                     <span>·</span>
                     <span>{{ formatTime(m.createdAt) }}</span>
                   </div>
+                  @if (m.attachments && m.attachments.length > 0) {
+                    <div class="mb-2 flex flex-wrap gap-2">
+                      @for (a of m.attachments; track a.id) {
+                        <a [href]="a.url" target="_blank" class="block overflow-hidden rounded-md border border-zinc-200 hover:border-indigo-300">
+                          <img [src]="a.url" alt="attachment" class="h-24 w-32 object-cover" />
+                        </a>
+                      }
+                    </div>
+                  }
                   <p class="whitespace-pre-wrap text-zinc-800">{{ m.content }}</p>
                 </div>
               </div>
@@ -178,20 +191,67 @@ interface DisplayMessage extends ChatMessage {
 
           <!-- Composer -->
           <div class="border-t border-zinc-200 bg-zinc-50/50 p-3">
+            <!-- Pending attachment chips -->
+            @if (pendingAttachments().length > 0 || uploadingFiles().length > 0) {
+              <div class="mb-2 flex flex-wrap gap-2">
+                @for (a of pendingAttachments(); track a.id) {
+                  <div class="group relative overflow-hidden rounded-md border border-zinc-200 bg-white">
+                    <img [src]="a.url" alt="preview" class="h-16 w-20 object-cover" />
+                    <button
+                      type="button"
+                      (click)="removePending(a.id)"
+                      class="absolute right-0 top-0 inline-flex h-5 w-5 items-center justify-center bg-zinc-900/70 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-zinc-900"
+                      title="Remove"
+                    >
+                      <i-lucide [img]="XIcon" class="h-3 w-3"></i-lucide>
+                    </button>
+                  </div>
+                }
+                @for (name of uploadingFiles(); track name) {
+                  <div class="flex h-16 w-20 items-center justify-center rounded-md border border-dashed border-zinc-300 bg-zinc-100 text-[10px] text-zinc-500">
+                    <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-600"></span>
+                  </div>
+                }
+              </div>
+            }
+            @if (attachmentError(); as err) {
+              <div class="mb-2 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                <i-lucide [img]="AlertCircle" class="mt-0.5 h-3 w-3"></i-lucide>
+                {{ err }}
+              </div>
+            }
+            <input
+              #fileInput
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+              multiple
+              hidden
+              (change)="onFilesSelected($any($event.target).files)"
+            />
             <div class="flex gap-2">
+              <button
+                type="button"
+                (click)="fileInput.click()"
+                [disabled]="sending() || !conversationId() || pendingAttachments().length >= 8"
+                title="Attach images (PNG, JPEG, WebP, GIF — max 10 MB each, up to 8)"
+                class="inline-flex h-fit items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-600 hover:bg-zinc-50 disabled:opacity-40 focus-ring"
+              >
+                <i-lucide [img]="Paperclip" class="h-3.5 w-3.5"></i-lucide>
+              </button>
               <textarea
                 rows="2"
                 [ngModel]="draft()"
                 (ngModelChange)="draft.set($event)"
                 (keydown)="onComposerKey($event)"
+                (paste)="onComposerPaste($event)"
                 [disabled]="sending() || !conversationId()"
-                placeholder="Type your request…"
+                placeholder="Type your request… (paste a screenshot too)"
                 class="min-h-0 flex-1 resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus-ring disabled:bg-zinc-50 disabled:opacity-60"
               ></textarea>
               <button
                 type="button"
                 (click)="send()"
-                [disabled]="!draft().trim() || sending() || !conversationId()"
+                [disabled]="!canSendMessage()"
                 class="inline-flex h-fit items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40 focus-ring"
               >
                 <i-lucide [img]="Send" class="h-3.5 w-3.5"></i-lucide>
@@ -338,6 +398,9 @@ export class CaseChatPage implements OnInit {
   readonly Save = Save;
   readonly RefreshCcw = RefreshCcw;
   readonly MessageCircleQuestion = MessageCircleQuestion;
+  readonly Paperclip = Paperclip;
+  readonly XIcon = XIcon;
+  readonly ImageIcon = ImageIcon;
 
   readonly conversationId = signal<string | null>(null);
   readonly refineTestId = signal<string | null>(null);
@@ -352,6 +415,19 @@ export class CaseChatPage implements OnInit {
 
   readonly models = signal<ModelEntry[]>([]);
   readonly selectedModel = signal<string>('');
+
+  readonly pendingAttachments = signal<ChatAttachment[]>([]);
+  readonly uploadingFiles = signal<string[]>([]);
+  readonly attachmentError = signal<string | null>(null);
+
+  readonly canSendMessage = computed(() => {
+    const hasText = this.draft().trim().length > 0;
+    const hasAtt = this.pendingAttachments().length > 0;
+    return (hasText || hasAtt)
+      && !this.sending()
+      && !!this.conversationId()
+      && this.uploadingFiles().length === 0;
+  });
 
   readonly isRefining = computed(() => !!this.refineTestId());
 
@@ -436,19 +512,23 @@ export class CaseChatPage implements OnInit {
   send(): void {
     const text = this.draft().trim();
     const cid = this.conversationId();
-    if (!text || !cid || this.sending()) return;
+    const attachments = this.pendingAttachments();
+    if ((!text && attachments.length === 0) || !cid || this.sending()) return;
     this.sending.set(true);
     this.error.set(null);
+    const attachmentIds = attachments.map((a) => a.id);
     const optimistic: DisplayMessage = {
       id: `tmp-${Date.now()}`,
       role: 'user',
       content: text,
       createdAt: new Date().toISOString(),
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
     this.messages.update((m) => [...m, optimistic]);
     this.draft.set('');
+    this.pendingAttachments.set([]);
 
-    this.chat.sendMessage(cid, text, this.selectedModel() || undefined).subscribe({
+    this.chat.sendMessage(cid, text, this.selectedModel() || undefined, attachmentIds).subscribe({
       next: (res) => {
         this.messages.update((m) => {
           const filtered = m.filter((x) => x.id !== optimistic.id);
@@ -512,6 +592,59 @@ export class CaseChatPage implements OnInit {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       this.send();
+    }
+  }
+
+  onComposerPaste(event: ClipboardEvent): void {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (const item of Array.from(items)) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const f = item.getAsFile();
+        if (f) files.push(f);
+      }
+    }
+    if (files.length > 0) {
+      event.preventDefault();
+      this.uploadFiles(files);
+    }
+  }
+
+  onFilesSelected(fileList: FileList | null): void {
+    if (!fileList || fileList.length === 0) return;
+    this.uploadFiles(Array.from(fileList));
+  }
+
+  removePending(id: string): void {
+    this.pendingAttachments.update((list) => list.filter((a) => a.id !== id));
+  }
+
+  private uploadFiles(files: File[]): void {
+    const cid = this.conversationId();
+    if (!cid) return;
+    this.attachmentError.set(null);
+
+    const remainingSlots = 8 - this.pendingAttachments().length;
+    if (remainingSlots <= 0) {
+      this.attachmentError.set('Max 8 attachments per message.');
+      return;
+    }
+    const toUpload = files.slice(0, remainingSlots);
+
+    for (const file of toUpload) {
+      const name = file.name || `pasted-${Date.now()}.png`;
+      this.uploadingFiles.update((list) => [...list, name]);
+      this.chat.uploadAttachment(cid, file).subscribe({
+        next: (att) => {
+          this.pendingAttachments.update((list) => [...list, att]);
+          this.uploadingFiles.update((list) => list.filter((n) => n !== name));
+        },
+        error: (err) => {
+          this.uploadingFiles.update((list) => list.filter((n) => n !== name));
+          this.attachmentError.set(err?.error?.error ?? err?.message ?? `Upload failed: ${name}`);
+        },
+      });
     }
   }
 }

@@ -3,6 +3,7 @@ import {
   BelongsTo, ForeignKey, CreatedAt,
 } from 'sequelize-typescript';
 import { Message } from './message.model.js';
+import { Conversation } from './conversation.model.js';
 
 @Table({ tableName: 'chat_attachments', timestamps: false })
 export class ChatAttachment extends Model {
@@ -12,8 +13,12 @@ export class ChatAttachment extends Model {
   declare id: string;
 
   @ForeignKey(() => Message)
-  @Column({ field: 'message_id', type: DataType.BIGINT, allowNull: false })
-  declare messageId: number;
+  @Column({ field: 'message_id', type: DataType.BIGINT, allowNull: true })
+  declare messageId: number | null;
+
+  @ForeignKey(() => Conversation)
+  @Column({ field: 'conversation_id', type: DataType.UUID, allowNull: false })
+  declare conversationId: string;
 
   @Column({
     type: DataType.TEXT,
@@ -43,4 +48,7 @@ export class ChatAttachment extends Model {
 
   @BelongsTo(() => Message)
   declare message: Message;
+
+  @BelongsTo(() => Conversation)
+  declare conversation: Conversation;
 }

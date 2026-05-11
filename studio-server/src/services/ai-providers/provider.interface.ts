@@ -26,10 +26,16 @@ export interface GenerationResult {
   providerUsed: ProviderId;
 }
 
+export interface UserImage {
+  data: Buffer;
+  mediaType: string;
+}
+
 export interface GenerateOpts {
   model: string;
   history: ChatTurn[];
   userMessage: string;
+  userImages?: UserImage[];
   systemPrompt: string;
   projectContext: string;
 }

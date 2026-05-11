@@ -93,6 +93,7 @@ export const CreateConversationQuery = z.object({
 export const SendMessageBody = z.object({
   content: z.string().min(1, 'message content is required'),
   model: z.string().optional(),
+  attachmentIds: z.array(z.string().uuid()).max(8).optional(),
 });
 
 // ─── Runs ────────────────────────────────────────────────────────────────────

@@ -1,7 +1,8 @@
 import { ChatAttachment } from '../models/chat-attachment.model.js';
 
 export interface CreateAttachmentInput {
-  messageId: number;
+  conversationId: string;
+  messageId?: number;
   kind: 'image' | 'file';
   minioKey: string;
   contentType: string;
@@ -13,7 +14,8 @@ export interface CreateAttachmentInput {
 export const AttachmentsRepo = {
   async create(input: CreateAttachmentInput): Promise<ChatAttachment> {
     return ChatAttachment.create({
-      messageId: input.messageId,
+      conversationId: input.conversationId,
+      messageId: input.messageId ?? null,
       kind: input.kind,
       minioKey: input.minioKey,
       contentType: input.contentType,
@@ -27,7 +29,20 @@ export const AttachmentsRepo = {
     return ChatAttachment.findAll({ where: { messageId } });
   },
 
+  async listByConversation(conversationId: string): Promise<ChatAttachment[]> {
+    return ChatAttachment.findAll({ where: { conversationId } });
+  },
+
   async get(id: string): Promise<ChatAttachment | null> {
     return ChatAttachment.findByPk(id);
+  },
+
+  /** Link a batch of orphan attachments to a freshly-created message. */
+  async linkToMessage(ids: string[], messageId: number): Promise<void> {
+    if (ids.length === 0) return;
+    await ChatAttachment.update(
+      { messageId },
+      { where: { id: ids } }
+    );
   },
 };

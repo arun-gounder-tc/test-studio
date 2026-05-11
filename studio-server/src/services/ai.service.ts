@@ -11,9 +11,10 @@ import type {
   GenerationResult,
   NewStepDef,
   FixtureFile,
+  UserImage,
 } from './ai-providers/provider.interface.js';
 
-export type { ChatTurn, GenerationResult, NewStepDef, FixtureFile };
+export type { ChatTurn, GenerationResult, NewStepDef, FixtureFile, UserImage };
 
 export class AIService {
   private readonly defaultModel: string;
@@ -37,7 +38,8 @@ export class AIService {
   async generate(
     history: ChatTurn[],
     userMessage: string,
-    modelOverride?: string
+    modelOverride?: string,
+    userImages?: UserImage[]
   ): Promise<GenerationResult> {
     const model = modelOverride?.trim() || this.defaultModel;
     const provider = getProviderForModel(model);
@@ -49,6 +51,7 @@ export class AIService {
       model,
       history,
       userMessage,
+      userImages,
       systemPrompt: STUDIO_SYSTEM_PROMPT,
       projectContext: projectBlock,
     });

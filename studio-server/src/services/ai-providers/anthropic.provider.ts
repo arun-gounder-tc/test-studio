@@ -32,9 +32,22 @@ export class AnthropicProvider implements AIProvider {
       );
     }
 
+    const imageBlocks: Anthropic.Messages.ImageBlockParam[] = (opts.userImages ?? []).map((img) => ({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: img.mediaType as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif',
+        data: img.data.toString('base64'),
+      },
+    }));
+
+    const userContent: Anthropic.Messages.ContentBlockParam[] = imageBlocks.length
+      ? [...imageBlocks, { type: 'text', text: opts.userMessage }]
+      : [{ type: 'text', text: opts.userMessage }];
+
     const messages: Anthropic.Messages.MessageParam[] = [
       ...opts.history.map((t) => ({ role: t.role, content: t.content })),
-      { role: 'user', content: opts.userMessage },
+      { role: 'user', content: userContent },
     ];
 
     const response = await this.client.messages.create({

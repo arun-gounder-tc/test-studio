@@ -1,8 +1,13 @@
 import { Router } from 'express';
+import multer from 'multer';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import { conversationStore } from '../services/conversation.store.js';
 import { aiService } from '../services/ai.service.js';
 import { gherkinValidator } from '../services/gherkin-validator.service.js';
 import { ProjectsRepo } from '../db/repositories/projects.repo.js';
+import { AttachmentsRepo } from '../db/repositories/attachments.repo.js';
+import { storage } from '../services/storage/index.js';
 import {
   parseOrFail,
   UuidParam,
@@ -12,6 +17,28 @@ import {
 } from '../utils/zod.js';
 
 export const conversationsRouter = Router();
+
+const ALLOWED_IMAGE_MIME = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/gif',
+]);
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+const ATTACHMENT_PRESIGN_TTL = 60 * 60; // 1 hour
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_IMAGE_MIME.has(file.mimetype)) {
+      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: PNG, JPEG, WebP, GIF.`));
+      return;
+    }
+    cb(null, true);
+  },
+});
 
 /** Resolve active projectId — from body, query, or fallback to 'default' slug */
 async function resolveProjectId(body: Record<string, unknown>, query: Record<string, unknown>): Promise<string | null> {
@@ -59,6 +86,60 @@ conversationsRouter.get('/:id', async (req, res) => {
   }
 });
 
+/**
+ * POST /:id/attachments — upload image, store in MinIO, create chat_attachments row.
+ * Returns attachment id + presigned URL (for instant preview in UI).
+ * The attachment is "orphan" (messageId null) until a sendMessage references it.
+ */
+conversationsRouter.post('/:id/attachments', upload.single('file'), async (req, res) => {
+  const params = parseOrFail(res, UuidParam, req.params);
+  if (!params) return;
+
+  if (!req.file) {
+    res.status(400).json({ error: 'No file uploaded (field name must be "file")' });
+    return;
+  }
+
+  try {
+    const conv = await conversationStore.get(params.id);
+    if (!conv) {
+      res.status(404).json({ error: 'Conversation not found' });
+      return;
+    }
+
+    const { mimetype, size, buffer, originalname } = req.file;
+    const ext = path.extname(originalname).toLowerCase() || '.png';
+    const key = `chat-attachments/${params.id}/${randomUUID()}${ext}`;
+
+    await storage.putObject({
+      key,
+      body: buffer,
+      contentType: mimetype,
+      sizeBytes: size,
+    });
+
+    const attachment = await AttachmentsRepo.create({
+      conversationId: params.id,
+      kind: 'image',
+      minioKey: key,
+      contentType: mimetype,
+      sizeBytes: size,
+    });
+
+    const url = await storage.getPresignedUrl(key, { expiresInSec: ATTACHMENT_PRESIGN_TTL });
+
+    res.json({
+      id: attachment.id,
+      kind: attachment.kind,
+      contentType: attachment.contentType,
+      sizeBytes: Number(attachment.sizeBytes),
+      url,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to upload attachment' });
+  }
+});
+
 conversationsRouter.post('/:id/messages', async (req, res) => {
   const params = parseOrFail(res, UuidParam, req.params);
   if (!params) return;
@@ -71,7 +152,13 @@ conversationsRouter.post('/:id/messages', async (req, res) => {
       return;
     }
 
+    const attachmentIds = body.attachmentIds ?? [];
     const userMessage = await conversationStore.appendUser(conv.id, body.content);
+
+    // Link uploaded attachments to this message
+    if (attachmentIds.length > 0) {
+      await AttachmentsRepo.linkToMessage(attachmentIds, Number(userMessage.id));
+    }
 
     if (!aiService.isConfigured()) {
       const stub =
@@ -82,10 +169,18 @@ conversationsRouter.post('/:id/messages', async (req, res) => {
     }
 
     try {
+      // Fetch image bytes for any attached images so the provider can include them
+      const attachmentImages = await loadAttachmentImages(attachmentIds);
+
       const history = (await conversationStore.toChatTurns(conv.id)).filter(
         (t) => t.content !== body.content
       );
-      const generation = await aiService.generate(history, body.content, body.model);
+      const generation = await aiService.generate(
+        history,
+        body.content,
+        body.model,
+        attachmentImages
+      );
       const validation = generation.featureContent
         ? gherkinValidator.validate(generation.featureContent)
         : null;
@@ -94,7 +189,10 @@ conversationsRouter.post('/:id/messages', async (req, res) => {
         generation.explanation,
         generation
       );
-      res.json({ userMessage, assistantMessage, generation, validation });
+
+      // Re-fetch user message with attachment metadata so UI can render thumbnails
+      const userMessageWithAttachments = await enrichWithAttachments(userMessage, attachmentIds);
+      res.json({ userMessage: userMessageWithAttachments, assistantMessage, generation, validation });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'AI request failed';
       const assistantMessage = await conversationStore.appendAssistant(
@@ -108,3 +206,39 @@ conversationsRouter.post('/:id/messages', async (req, res) => {
   }
 });
 
+/** Pull image bytes + media type from MinIO for each attachment id. */
+async function loadAttachmentImages(
+  ids: string[]
+): Promise<Array<{ data: Buffer; mediaType: string }>> {
+  if (ids.length === 0) return [];
+  const out: Array<{ data: Buffer; mediaType: string }> = [];
+  for (const id of ids) {
+    const row = await AttachmentsRepo.get(id);
+    if (!row || row.kind !== 'image') continue;
+    const stream = await storage.getObjectStream(row.minioKey);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream as AsyncIterable<Buffer>) chunks.push(chunk);
+    out.push({ data: Buffer.concat(chunks), mediaType: row.contentType });
+  }
+  return out;
+}
+
+/** Attach presigned URLs to the user message so the UI can render thumbnails. */
+async function enrichWithAttachments(userMessage: any, attachmentIds: string[]) {
+  if (attachmentIds.length === 0) return userMessage;
+  const attachments = await Promise.all(
+    attachmentIds.map(async (id) => {
+      const row = await AttachmentsRepo.get(id);
+      if (!row) return null;
+      const url = await storage.getPresignedUrl(row.minioKey, { expiresInSec: ATTACHMENT_PRESIGN_TTL });
+      return {
+        id: row.id,
+        kind: row.kind,
+        contentType: row.contentType,
+        sizeBytes: Number(row.sizeBytes),
+        url,
+      };
+    })
+  );
+  return { ...userMessage, attachments: attachments.filter(Boolean) };
+}

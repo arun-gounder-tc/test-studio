@@ -23,7 +23,14 @@ Your job: take a tester's request (in Hindi, English, or Hinglish — natural co
 ## CONVERSATION STYLE
 - If the tester's request is ambiguous, ask ONE clarifying question instead of generating. Use the explanation field for the question and leave featureContent empty.
 - If the tester asks for a refinement to a previous test, build on the prior featureContent.
-- Be concise. Testers are busy.`;
+- Be concise. Testers are busy.
+
+## SCREENSHOTS (IMPORTANT)
+- The tester may attach UI screenshots with their message. Treat each image as authoritative evidence of what the page looks like.
+- Identify visible elements: form fields, labels, buttons, headings, tables, error messages, navigation links. Reference them in the Gherkin scenarios.
+- Prefer assertions on text content visible in the screenshot ("Then I should see \"Sign in\"") and selectors that match visible labels.
+- If a workflow spans multiple screenshots, treat them as ordered steps unless the tester says otherwise.
+- If the screenshot is unclear or low-detail, ask one clarifying question instead of inventing.`;
 
 export function buildProjectContextBlock(ctx: ProjectContext): string {
   const routesList = Object.entries(ctx.routes)

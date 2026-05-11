@@ -32,6 +32,19 @@ export class OpenAIProvider implements AIProvider {
       );
     }
 
+    const userImageBlocks: OpenAI.Chat.Completions.ChatCompletionContentPartImage[] =
+      (opts.userImages ?? []).map((img) => ({
+        type: 'image_url',
+        image_url: {
+          url: `data:${img.mediaType};base64,${img.data.toString('base64')}`,
+        },
+      }));
+
+    const userContent: OpenAI.Chat.Completions.ChatCompletionUserMessageParam['content'] =
+      userImageBlocks.length
+        ? [{ type: 'text', text: opts.userMessage }, ...userImageBlocks]
+        : opts.userMessage;
+
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: 'system',
@@ -41,7 +54,7 @@ export class OpenAIProvider implements AIProvider {
         role: t.role,
         content: t.content,
       })),
-      { role: 'user', content: opts.userMessage },
+      { role: 'user', content: userContent },
     ];
 
     const response = await this.client.chat.completions.create({

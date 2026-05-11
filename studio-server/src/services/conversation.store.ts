@@ -4,8 +4,20 @@
  * Keeps the same surface the routes depend on so migration is non-breaking.
  */
 import { ConversationsRepo } from '../db/repositories/conversations.repo.js';
+import { AttachmentsRepo } from '../db/repositories/attachments.repo.js';
 import { Message } from '../db/models/message.model.js';
+import { storage } from './storage/index.js';
 import type { ChatTurn, GenerationResult } from './ai.service.js';
+
+const ATTACHMENT_PRESIGN_TTL = 60 * 60;
+
+export interface AttachmentRecord {
+  id: string;
+  kind: 'image' | 'file';
+  contentType: string;
+  sizeBytes: number;
+  url: string;
+}
 
 export interface MessageRecord {
   id: string;
@@ -13,6 +25,7 @@ export interface MessageRecord {
   content: string;
   createdAt: string;
   generation?: GenerationResult;
+  attachments?: AttachmentRecord[];
 }
 
 export interface ConversationRecord {
@@ -49,6 +62,33 @@ class ConversationStore {
     const conv = await ConversationsRepo.get(id);
     if (!conv) return undefined;
     const messages = (conv.messages ?? []).map(toMessageRecord);
+
+    // Bulk-load attachments for this conversation (only image kind shown in UI)
+    const allAttachments = await AttachmentsRepo.listByConversation(id);
+    if (allAttachments.length > 0) {
+      const byMessageId = new Map<number, typeof allAttachments>();
+      for (const a of allAttachments) {
+        if (a.messageId == null) continue;
+        const list = byMessageId.get(a.messageId) ?? [];
+        list.push(a);
+        byMessageId.set(a.messageId, list);
+      }
+      for (const m of messages) {
+        const numId = Number(m.id);
+        const atts = byMessageId.get(numId);
+        if (!atts || atts.length === 0) continue;
+        m.attachments = await Promise.all(
+          atts.map(async (a) => ({
+            id: a.id,
+            kind: a.kind,
+            contentType: a.contentType,
+            sizeBytes: Number(a.sizeBytes),
+            url: await storage.getPresignedUrl(a.minioKey, { expiresInSec: ATTACHMENT_PRESIGN_TTL }),
+          }))
+        );
+      }
+    }
+
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && m.generation);
     return {
       id: conv.id,

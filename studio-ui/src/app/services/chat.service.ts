@@ -2,11 +2,20 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
+export interface ChatAttachment {
+  id: string;
+  kind: 'image' | 'file';
+  contentType: string;
+  sizeBytes: number;
+  url: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   createdAt: string;
+  attachments?: ChatAttachment[];
 }
 
 export interface NewStepDef {
@@ -81,11 +90,24 @@ export class ChatService {
   sendMessage(
     conversationId: string,
     content: string,
-    model?: string
+    model?: string,
+    attachmentIds?: string[]
   ): Observable<MessageResponse> {
+    const body: Record<string, unknown> = { content };
+    if (model) body['model'] = model;
+    if (attachmentIds && attachmentIds.length > 0) body['attachmentIds'] = attachmentIds;
     return this.http.post<MessageResponse>(
       `${this.baseUrl}/conversations/${conversationId}/messages`,
-      model ? { content, model } : { content }
+      body
+    );
+  }
+
+  uploadAttachment(conversationId: string, file: File): Observable<ChatAttachment> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<ChatAttachment>(
+      `${this.baseUrl}/conversations/${conversationId}/attachments`,
+      form
     );
   }
 
