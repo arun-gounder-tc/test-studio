@@ -26,7 +26,8 @@ const ALLOWED_IMAGE_MIME = new Set([
   'image/gif',
 ]);
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
-const ATTACHMENT_PRESIGN_TTL = 60 * 60; // 1 hour
+const ATTACHMENT_PRESIGN_TTL = 60 * 60;     // 1 hour — for UI display
+const AI_PRESIGN_TTL = 60 * 60;             // 1 hour — provider fetches within this window
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -108,8 +109,13 @@ conversationsRouter.post('/:id/attachments', upload.single('file'), async (req, 
     }
 
     const { mimetype, size, buffer, originalname } = req.file;
+    if (!size || size === 0 || !buffer || buffer.length === 0) {
+      res.status(400).json({ error: 'Uploaded file is empty (0 bytes). Pick or paste an actual image.' });
+      return;
+    }
+
     const ext = path.extname(originalname).toLowerCase() || '.png';
-    const key = `chat-attachments/${params.id}/${randomUUID()}${ext}`;
+    const key = `chat-images/${params.id}/${randomUUID()}${ext}`;
 
     await storage.putObject({
       key,
@@ -169,8 +175,8 @@ conversationsRouter.post('/:id/messages', async (req, res) => {
     }
 
     try {
-      // Fetch image bytes for any attached images so the provider can include them
-      const attachmentImages = await loadAttachmentImages(attachmentIds);
+      // Provider receives presigned URLs — no binary in the AI request body
+      const attachmentImages = await loadAttachmentImageUrls(attachmentIds);
 
       const history = (await conversationStore.toChatTurns(conv.id)).filter(
         (t) => t.content !== body.content
@@ -206,19 +212,17 @@ conversationsRouter.post('/:id/messages', async (req, res) => {
   }
 });
 
-/** Pull image bytes + media type from MinIO for each attachment id. */
-async function loadAttachmentImages(
+/** Generate fresh presigned URLs for each attachment so the AI provider fetches directly. */
+async function loadAttachmentImageUrls(
   ids: string[]
-): Promise<Array<{ data: Buffer; mediaType: string }>> {
+): Promise<Array<{ url: string; mediaType: string }>> {
   if (ids.length === 0) return [];
-  const out: Array<{ data: Buffer; mediaType: string }> = [];
+  const out: Array<{ url: string; mediaType: string }> = [];
   for (const id of ids) {
     const row = await AttachmentsRepo.get(id);
     if (!row || row.kind !== 'image') continue;
-    const stream = await storage.getObjectStream(row.minioKey);
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream as AsyncIterable<Buffer>) chunks.push(chunk);
-    out.push({ data: Buffer.concat(chunks), mediaType: row.contentType });
+    const url = await storage.getPresignedUrl(row.minioKey, { expiresInSec: AI_PRESIGN_TTL });
+    out.push({ url, mediaType: row.contentType });
   }
   return out;
 }

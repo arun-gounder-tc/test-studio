@@ -34,11 +34,7 @@ export class AnthropicProvider implements AIProvider {
 
     const imageBlocks: Anthropic.Messages.ImageBlockParam[] = (opts.userImages ?? []).map((img) => ({
       type: 'image',
-      source: {
-        type: 'base64',
-        media_type: img.mediaType as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif',
-        data: img.data.toString('base64'),
-      },
+      source: { type: 'url', url: img.url },
     }));
 
     const userContent: Anthropic.Messages.ContentBlockParam[] = imageBlocks.length

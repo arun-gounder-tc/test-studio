@@ -35,9 +35,7 @@ export class OpenAIProvider implements AIProvider {
     const userImageBlocks: OpenAI.Chat.Completions.ChatCompletionContentPartImage[] =
       (opts.userImages ?? []).map((img) => ({
         type: 'image_url',
-        image_url: {
-          url: `data:${img.mediaType};base64,${img.data.toString('base64')}`,
-        },
+        image_url: { url: img.url },
       }));
 
     const userContent: OpenAI.Chat.Completions.ChatCompletionUserMessageParam['content'] =

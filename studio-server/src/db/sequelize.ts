@@ -44,5 +44,18 @@ export async function initDB(): Promise<void> {
   // alter: { drop: false } adds missing columns/tables but never tries to drop
   // constraints — avoids SequelizeUnknownConstraintError on schema drift
   await sequelize.sync({ alter: { drop: false } });
+
+  // One-off constraint adjustments (idempotent) — sync() can't drop NOT NULL.
+  // Phase C: chat_attachments.message_id must be nullable so attachments can be
+  // uploaded before the user message is created (then linked on send-message).
+  await sequelize.query(
+    `ALTER TABLE chat_attachments ALTER COLUMN message_id DROP NOT NULL;`
+  ).catch((err: Error) => {
+    // Ignore if already nullable; warn on anything else
+    if (!/is not a not-null constraint|does not exist/i.test(err.message)) {
+      console.warn('[migration] chat_attachments.message_id alter:', err.message);
+    }
+  });
+
   console.log('✅ Database schema synced.');
 }

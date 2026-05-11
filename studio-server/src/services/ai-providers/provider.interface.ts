@@ -27,8 +27,8 @@ export interface GenerationResult {
 }
 
 export interface UserImage {
-  data: Buffer;
-  mediaType: string;
+  url: string;       // Public/presigned URL the AI provider can fetch directly
+  mediaType: string; // e.g. 'image/png'
 }
 
 export interface GenerateOpts {
