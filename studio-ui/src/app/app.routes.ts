@@ -23,5 +23,9 @@ export const routes: Routes = [
     path: 'run/:testId',
     loadComponent: () => import('./pages/runner/runner.page').then((m) => m.RunnerPage),
   },
+  {
+    path: 'history',
+    loadComponent: () => import('./pages/history/history.page').then((m) => m.HistoryPage),
+  },
   { path: '**', redirectTo: 'projects' },
 ];

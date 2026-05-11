@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { LucideAngularModule, FlaskConical, BookOpen, Plus, FolderKanban, ChevronDown } from 'lucide-angular';
+import { LucideAngularModule, FlaskConical, BookOpen, Plus, FolderKanban, ChevronDown, History as HistoryIcon } from 'lucide-angular';
 import { ToastHostComponent } from './shared/toast/toast-host.component';
 import { ProjectsService, Project } from './services/projects.service';
 
@@ -72,6 +72,14 @@ import { ProjectsService, Project } from './services/projects.service';
             <i-lucide [img]="Plus" class="h-4 w-4"></i-lucide>
             New Test
           </a>
+          <a
+            routerLink="/history"
+            routerLinkActive="bg-zinc-100 text-zinc-900"
+            class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
+          >
+            <i-lucide [img]="History" class="h-4 w-4"></i-lucide>
+            History
+          </a>
         </nav>
       </div>
     </header>
@@ -87,6 +95,7 @@ export class AppComponent implements OnInit {
   readonly Plus = Plus;
   readonly FolderKanban = FolderKanban;
   readonly ChevronDown = ChevronDown;
+  readonly History = HistoryIcon;
 
   readonly projectsService = inject(ProjectsService);
 

@@ -30,6 +30,32 @@ export interface RunRecord {
   screenshotsDir: string | null;
 }
 
+export interface RunSummary {
+  id: string;
+  projectId: string;
+  testId: string | null;
+  testVersion: number | null;
+  status: RunStatus | 'queued' | 'cancelled';
+  headed: boolean;
+  exitCode: number | null;
+  scenariosTotal: number | null;
+  scenariosPassed: number | null;
+  scenariosFailed: number | null;
+  durationMs: number | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+export interface RunArtifact {
+  id: string;
+  kind: 'video' | 'screenshot' | 'report' | 'log-bundle';
+  contentType: string;
+  sizeBytes: number;
+  scenarioName: string | null;
+  url: string;
+  createdAt: string;
+}
+
 export interface RunEvent {
   type: 'start' | 'log' | 'scenario' | 'finish' | 'error';
   ts: string;
@@ -59,6 +85,17 @@ export class RunsService {
 
   get(runId: string): Observable<RunRecord> {
     return this.http.get<RunRecord>(`${this.baseUrl}/${runId}`);
+  }
+
+  list(projectId?: string): Observable<{ runs: RunSummary[] }> {
+    const url = projectId
+      ? `${this.baseUrl}?projectId=${encodeURIComponent(projectId)}`
+      : this.baseUrl;
+    return this.http.get<{ runs: RunSummary[] }>(url);
+  }
+
+  artifacts(runId: string): Observable<{ artifacts: RunArtifact[] }> {
+    return this.http.get<{ artifacts: RunArtifact[] }>(`${this.baseUrl}/${runId}/artifacts`);
   }
 
   stream(runId: string, handlers: {
