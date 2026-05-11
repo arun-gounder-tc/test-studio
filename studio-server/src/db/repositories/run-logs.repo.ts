@@ -22,4 +22,17 @@ export const RunLogsRepo = {
       limit,
     });
   },
+
+  /** All rows for a run — used for log-bundle compaction on completion. */
+  async listAllByRun(runId: string): Promise<RunLog[]> {
+    return RunLog.findAll({
+      where: { runId },
+      order: [['sequence', 'ASC']],
+    });
+  },
+
+  /** Delete all log rows for a run (after they've been compacted to MinIO). */
+  async deleteByRun(runId: string): Promise<number> {
+    return RunLog.destroy({ where: { runId } });
+  },
 };

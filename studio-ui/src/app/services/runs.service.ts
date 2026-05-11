@@ -98,6 +98,13 @@ export class RunsService {
     return this.http.get<{ artifacts: RunArtifact[] }>(`${this.baseUrl}/${runId}/artifacts`);
   }
 
+  logs(runId: string, after = -1, limit = 1000): Observable<{
+    logs: Array<{ sequence: number; stream: 'stdout' | 'stderr' | 'event'; line: string; ts?: string | null }>;
+    source: 'log-bundle' | 'run_logs';
+  }> {
+    return this.http.get<any>(`${this.baseUrl}/${runId}/logs?after=${after}&limit=${limit}`);
+  }
+
   stream(runId: string, handlers: {
     onEvent: (event: RunEvent) => void;
     onEnd: () => void;

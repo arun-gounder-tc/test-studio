@@ -2,12 +2,16 @@ import { spawn, ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import { promisify } from 'node:util';
 import { paths } from '../utils/paths.js';
 import { RunsRepo } from '../db/repositories/runs.repo.js';
 import { RunLogsRepo } from '../db/repositories/run-logs.repo.js';
 import { Run } from '../db/models/run.model.js';
 import { ProjectsRepo } from '../db/repositories/projects.repo.js';
 import { storage } from './storage/index.js';
+
+const gzipAsync = promisify(zlib.gzip);
 
 export type RunEventType =
   | 'start'
@@ -433,6 +437,39 @@ class RunnerService extends EventEmitter {
     }
 
     await Promise.all(tasks);
+
+    // Log-bundle compaction: gather per-line rows, gzip, upload to MinIO,
+    // then delete the per-line rows. Keeps run_logs table small while
+    // preserving full log history (replayable via /runs/:id/logs).
+    try {
+      const rows = await RunLogsRepo.listAllByRun(record.id);
+      if (rows.length > 0) {
+        const payload = rows.map((r) => ({
+          sequence: r.sequence,
+          stream: r.stream,
+          line: r.line,
+          ts: r.ts?.toISOString?.() ?? null,
+        }));
+        const gz = await gzipAsync(Buffer.from(JSON.stringify(payload), 'utf-8'));
+        const key = `run-artifacts/${record.id}/logs.json.gz`;
+        await storage.putObject({
+          key,
+          body: gz,
+          contentType: 'application/gzip',
+          sizeBytes: gz.length,
+        });
+        await RunsRepo.attachArtifact({
+          runId: record.id,
+          kind: 'log-bundle',
+          minioKey: key,
+          contentType: 'application/gzip',
+          sizeBytes: gz.length,
+        });
+        await RunLogsRepo.deleteByRun(record.id);
+      }
+    } catch (err) {
+      console.warn(`[run ${record.id}] log-bundle compaction failed:`, err instanceof Error ? err.message : err);
+    }
 
     if (!keepLocal && record.screenshotsDir && fs.existsSync(record.screenshotsDir)) {
       try {

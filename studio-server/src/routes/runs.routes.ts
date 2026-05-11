@@ -262,16 +262,43 @@ runsRouter.get('/:id/artifacts', async (req, res) => {
   }
 });
 
-/** GET /runs/:id/logs?after=-1&limit=500 */
+/** GET /runs/:id/logs?after=-1&limit=500
+ *  Prefers the log-bundle artifact (post-completion compaction) if present;
+ *  otherwise falls back to the live run_logs table (active runs).
+ */
 runsRouter.get('/:id/logs', async (req, res) => {
   const params = parseOrFail(res, UuidParam, req.params);
   if (!params) return;
   const query = parseOrFail(res, RunLogsQuery, req.query);
   if (!query) return;
   try {
+    // Check for a log-bundle artifact first (compacted post-run)
+    const artifacts = await RunsRepo.listArtifacts(params.id);
+    const bundle = artifacts.find((a) => a.kind === 'log-bundle');
+    if (bundle) {
+      const zlib = await import('node:zlib');
+      const { promisify } = await import('node:util');
+      const gunzipAsync = promisify(zlib.gunzip);
+
+      const stream = await storage.getObjectStream(bundle.minioKey);
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream as AsyncIterable<Buffer>) chunks.push(chunk);
+      const gz = Buffer.concat(chunks);
+      const raw = await gunzipAsync(gz);
+      const all = JSON.parse(raw.toString('utf-8')) as Array<{
+        sequence: number; stream: string; line: string; ts: string | null;
+      }>;
+      const filtered = all
+        .filter((r) => r.sequence > query.after)
+        .slice(0, query.limit);
+      res.json({ logs: filtered, source: 'log-bundle' });
+      return;
+    }
+
+    // Active run — read from DB
     const { RunLogsRepo } = await import('../db/repositories/run-logs.repo.js');
     const logs = await RunLogsRepo.listByRun(params.id, query.after, query.limit);
-    res.json({ logs });
+    res.json({ logs, source: 'run_logs' });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to fetch logs' });
   }

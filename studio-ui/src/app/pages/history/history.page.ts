@@ -17,8 +17,15 @@ import {
   ChevronRight,
   Play,
   FileText,
+  Terminal,
 } from 'lucide-angular';
 import { RunsService, RunSummary, RunArtifact } from '../../services/runs.service';
+
+interface LogLine {
+  sequence: number;
+  stream: 'stdout' | 'stderr' | 'event';
+  line: string;
+}
 import { LibraryService, TestSummary } from '../../services/library.service';
 import { ProjectsService } from '../../services/projects.service';
 
@@ -27,6 +34,13 @@ interface ExpandedArtifacts {
   video: RunArtifact | null;
   screenshots: RunArtifact[];
   report: RunArtifact | null;
+  error: string | null;
+}
+
+interface ExpandedLogs {
+  loading: boolean;
+  lines: LogLine[];
+  source: 'log-bundle' | 'run_logs' | null;
   error: string | null;
 }
 
@@ -228,6 +242,34 @@ interface ExpandedArtifacts {
                             }
                           </div>
                         </div>
+
+                        <!-- Logs (full width) -->
+                        <div class="mt-4 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-950">
+                          <header class="flex items-center gap-2 border-b border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400">
+                            <i-lucide [img]="Terminal" class="h-3.5 w-3.5"></i-lucide>
+                            Run log
+                            @if (logsState().source; as src) {
+                              <span class="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">{{ src === 'log-bundle' ? 'archived' : 'live' }}</span>
+                            }
+                            @if (logsState().lines.length > 0) {
+                              <span class="ml-auto text-[10px] text-zinc-500">{{ logsState().lines.length }} lines</span>
+                            }
+                          </header>
+                          @if (logsState().loading) {
+                            <p class="p-3 text-xs text-zinc-500">Loading logs…</p>
+                          } @else if (logsState().error; as err) {
+                            <p class="p-3 text-xs text-red-400">{{ err }}</p>
+                          } @else if (logsState().lines.length === 0) {
+                            <p class="p-3 text-xs text-zinc-500">No logs captured.</p>
+                          } @else {
+                            <pre class="m-0 max-h-96 overflow-auto p-3 font-mono text-[11px] leading-5 text-zinc-300">@for (l of logsState().lines; track l.sequence) {<span
+                                [class.text-zinc-300]="l.stream === 'stdout'"
+                                [class.text-red-400]="l.stream === 'stderr'"
+                                [class.text-indigo-400]="l.stream === 'event'"
+                              >{{ l.line }}
+</span>}</pre>
+                          }
+                        </div>
                       }
                     </td>
                   </tr>
@@ -259,6 +301,7 @@ export class HistoryPage implements OnInit {
   readonly ChevronRight = ChevronRight;
   readonly Play = Play;
   readonly FileText = FileText;
+  readonly Terminal = Terminal;
 
   readonly runs = signal<RunSummary[]>([]);
   readonly testsById = signal<Map<string, TestSummary>>(new Map());
@@ -267,6 +310,9 @@ export class HistoryPage implements OnInit {
   readonly expandedId = signal<string | null>(null);
   readonly artifactsState = signal<ExpandedArtifacts>({
     loading: false, video: null, screenshots: [], report: null, error: null,
+  });
+  readonly logsState = signal<ExpandedLogs>({
+    loading: false, lines: [], source: null, error: null,
   });
 
   readonly activeProject = computed(() => this.projectsService.activeProjectId());
@@ -315,6 +361,7 @@ export class HistoryPage implements OnInit {
     }
     this.expandedId.set(runId);
     this.artifactsState.set({ loading: true, video: null, screenshots: [], report: null, error: null });
+    this.logsState.set({ loading: true, lines: [], source: null, error: null });
 
     this.runsService.artifacts(runId).subscribe({
       next: (res) => {
@@ -327,6 +374,23 @@ export class HistoryPage implements OnInit {
         this.artifactsState.set({
           loading: false, video: null, screenshots: [], report: null,
           error: err?.error?.error ?? err?.message ?? 'Failed to load artifacts',
+        });
+      },
+    });
+
+    this.runsService.logs(runId, -1, 5000).subscribe({
+      next: (res) => {
+        this.logsState.set({
+          loading: false,
+          lines: res.logs as LogLine[],
+          source: res.source,
+          error: null,
+        });
+      },
+      error: (err) => {
+        this.logsState.set({
+          loading: false, lines: [], source: null,
+          error: err?.error?.error ?? err?.message ?? 'Failed to load logs',
         });
       },
     });

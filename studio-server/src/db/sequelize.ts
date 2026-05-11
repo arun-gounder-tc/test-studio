@@ -51,11 +51,29 @@ export async function initDB(): Promise<void> {
   await sequelize.query(
     `ALTER TABLE chat_attachments ALTER COLUMN message_id DROP NOT NULL;`
   ).catch((err: Error) => {
-    // Ignore if already nullable; warn on anything else
     if (!/is not a not-null constraint|does not exist/i.test(err.message)) {
       console.warn('[migration] chat_attachments.message_id alter:', err.message);
     }
   });
+
+  // Phase D: indexes for hot queries (history list, log replay).
+  // Sequelize sync() doesn't always create non-unique compound indexes reliably,
+  // so we ensure them explicitly. IF NOT EXISTS makes this idempotent.
+  const indexStatements = [
+    `CREATE INDEX IF NOT EXISTS idx_runs_project_started ON runs (project_id, started_at DESC);`,
+    `CREATE INDEX IF NOT EXISTS idx_runs_test_started ON runs (test_id, started_at DESC) WHERE test_id IS NOT NULL;`,
+    `CREATE INDEX IF NOT EXISTS idx_run_logs_run_sequence ON run_logs (run_id, sequence);`,
+    `CREATE INDEX IF NOT EXISTS idx_run_artifacts_run_kind ON run_artifacts (run_id, kind);`,
+    `CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages (conversation_id, created_at);`,
+    `CREATE INDEX IF NOT EXISTS idx_chat_attachments_conversation ON chat_attachments (conversation_id);`,
+  ];
+  for (const stmt of indexStatements) {
+    try {
+      await sequelize.query(stmt);
+    } catch (err) {
+      console.warn('[migration] index create:', (err as Error).message);
+    }
+  }
 
   console.log('✅ Database schema synced.');
 }
