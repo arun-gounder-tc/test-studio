@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Dialog } from '@angular/cdk/dialog';
 import {
@@ -225,7 +225,14 @@ export class LibraryPage implements OnInit {
   readonly tests = signal<TestSummary[]>([]);
   readonly total = signal(0);
 
-  ngOnInit(): void { this.refresh(); }
+  constructor() {
+    effect(() => {
+      this.projectsService.activeProjectId();
+      this.refresh();
+    });
+  }
+
+  ngOnInit(): void { /* refresh handled by effect() */ }
 
   refresh(): void {
     this.loading.set(true);
