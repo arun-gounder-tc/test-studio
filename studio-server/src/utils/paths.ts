@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PROJECT_ROOT = path.resolve(__dirname, '../../', process.env.PROJECT_ROOT || '..');
+// Resolves to studio-server/ in both dev (src/utils/) and prod (dist/utils/)
+const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
 export const paths = {
   projectRoot: PROJECT_ROOT,
