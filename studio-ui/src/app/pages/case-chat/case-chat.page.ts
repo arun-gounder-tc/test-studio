@@ -313,6 +313,36 @@ interface DisplayMessage extends ChatMessage {
                   }
                 </div>
 
+                <!-- Validation errors / warnings detail -->
+                @if (latestValidation(); as val) {
+                  @if (val.errors.length > 0) {
+                    <div class="mb-3 rounded-md border border-red-200 bg-red-50 p-3">
+                      <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold text-red-800">
+                        <i-lucide [img]="AlertCircle" class="h-3.5 w-3.5"></i-lucide>
+                        Fix these before saving
+                      </p>
+                      <ul class="ml-5 list-disc space-y-0.5 text-xs text-red-700">
+                        @for (e of val.errors; track e) {
+                          <li>{{ e }}</li>
+                        }
+                      </ul>
+                      <p class="mt-2 text-[11px] text-red-600/80">
+                        Tip: chat me likho "fix this — &lt;error&gt;" — AI dobara try karega.
+                      </p>
+                    </div>
+                  }
+                  @if (val.warnings.length > 0) {
+                    <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+                      <p class="mb-1 text-xs font-semibold text-amber-800">Warnings</p>
+                      <ul class="ml-5 list-disc space-y-0.5 text-xs text-amber-700">
+                        @for (w of val.warnings; track w) {
+                          <li>{{ w }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                }
+
                 <!-- Code -->
                 <pre class="overflow-x-auto rounded-md border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs leading-relaxed text-zinc-800"><code>{{ gen.featureContent }}</code></pre>
 

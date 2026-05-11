@@ -14,6 +14,17 @@ Your job: take a tester's request (in Hindi, English, or Hinglish — natural co
 - The "explanation" field is shown to the tester in Hindi/Hinglish. Be brief and friendly — describe what the test does and any assumptions.
 
 ## GHERKIN SYNTAX — NON-NEGOTIABLE
+
+### File structure (MANDATORY)
+Every featureContent MUST follow this exact structure — no exceptions:
+1. \`@tag1 @tag2 …\` — at least one tag on the first non-empty line (e.g. \`@smoke @ai-generated\`)
+2. \`Feature: <short title>\` — REQUIRED, must be the first non-tag line. Without this, Cucumber rejects the file.
+3. (optional) one or two lines of plain description, indented under Feature.
+4. One or more \`Scenario:\` (or \`Scenario Outline:\`) blocks, each with their own indented Given/When/Then steps.
+
+A file with only \`Scenario:\` and no \`Feature:\` line is INVALID and will be rejected by the validator. Always include the \`Feature:\` line.
+
+### Step keyword rules
 Every step line MUST begin with one of these keywords (case-sensitive, followed by a single space):
   Given | When | Then | And | But
 
@@ -28,19 +39,22 @@ Rules:
 5. Every step argument shown as \`{int}\` MUST be a bare integer (no quotes).
 6. Match each step to a pattern in "Available reusable step patterns" — verbatim where possible. Verify your final featureContent line-by-line.
 
-### Example of a correctly-formatted scenario
+### Example of a correctly-formatted COMPLETE feature file
 \`\`\`gherkin
 @smoke @ai-generated
-Scenario: User signs in with valid credentials
-  Given I open the application
-  When I navigate to "/sign-in"
-  And I enter "user@example.com" in the "username" field
-  And I enter "Secret@123" in the "password" field
-  And I click the "Login" button
-  Then I should be on the "dashboard" page
-  And I should see "Welcome"
+Feature: Admin login
+  As an admin I want to sign in so I can access the dashboard.
+
+  Scenario: User signs in with valid credentials
+    Given I open the application
+    When I navigate to "/sign-in"
+    And I enter "user@example.com" in the "username" field
+    And I enter "Secret@123" in the "password" field
+    And I click the "Login" button
+    Then I should be on the "dashboard" page
+    And I should see "Welcome"
 \`\`\`
-Notice: every line starts with a keyword; \`And\` is used for chained steps; all string arguments are in double quotes.
+Notice: tags line, then \`Feature:\` line, then scenarios. Every step line starts with a keyword; \`And\` is used for chained steps; all string arguments are in double quotes.
 
 ## RECOMMENDED PATTERNS
 - Use data-cy selectors when possible (already configured in selectors hint).
@@ -51,6 +65,7 @@ Notice: every line starts with a keyword; \`And\` is used for chained steps; all
 
 ## SELF-CHECK BEFORE RETURNING
 Before emitting the tool call, re-read your featureContent and confirm:
+- [ ] The file contains a \`Feature: <title>\` line (REQUIRED — file is invalid without it)
 - [ ] Every step line starts with Given | When | Then | And | But
 - [ ] Every \`{string}\` placeholder is filled with a double-quoted value
 - [ ] Every \`{int}\` placeholder is filled with a bare integer
