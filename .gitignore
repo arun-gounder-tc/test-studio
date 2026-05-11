@@ -1,16 +1,19 @@
 # Dependencies
 node_modules/
 
-# Cypress runtime artifacts
-cypress/videos/
-cypress/screenshots/
-cypress/downloads/
+# Cypress runtime artifacts (location-agnostic — now under studio-server/)
+**/cypress/videos/
+**/cypress/screenshots/
+**/cypress/downloads/
 
-# Test Studio runtime data (Phase 2+)
-.test-studio/runs/
-.test-studio/uploads/
-.test-studio/*.db
-.test-studio/*.db-journal
+# Test Studio runtime data (Phase A+ — under studio-server/)
+**/.workspace/
+**/.test-studio/runs/
+**/.test-studio/uploads/
+**/.test-studio/storage/
+**/.test-studio/last-run.json
+**/.test-studio/*.db
+**/.test-studio/*.db-journal
 
 # Environment
 .env

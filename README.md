@@ -43,10 +43,10 @@ npm run studio
 # Backend health: http://localhost:3001/api/test-studio/health
 # Available models: http://localhost:3001/api/test-studio/models
 
-# OR run just Cypress (no UI)
-npm run cy:run                              # all feature specs, headless
-npm run cy:open                             # interactive
-CY_USE_BASE_URL=1 npm run cy:run            # with target app on :4200
+# OR run just Cypress directly (no UI) — now lives inside studio-server/
+cd studio-server && npm run cy:run                     # all feature specs, headless
+cd studio-server && npm run cy:open                    # interactive
+cd studio-server && CY_USE_BASE_URL=1 npm run cy:run   # with target app on :4200
 ```
 
 ---
@@ -108,7 +108,7 @@ Feature: Admin login
 ### 3. Run it
 
 ```bash
-CY_USE_BASE_URL=1 npm run cy:run -- --spec cypress/e2e/features/admin-login.feature
+cd studio-server && CY_USE_BASE_URL=1 npm run cy:run -- --spec cypress/e2e/features/admin-login.feature
 ```
 
 ---

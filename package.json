@@ -1,15 +1,12 @@
 {
-  "name": "test-studio",
+  "name": "test-studio-monorepo",
   "version": "0.1.0",
-  "description": "Cypress AI Test Studio — author, edit, and run E2E tests via natural-language chat (multi-provider AI). Portable across projects.",
+  "description": "Monorepo container for studio-server (backend) + studio-ui (frontend). Each is independently deployable.",
   "private": true,
   "scripts": {
     "studio": "concurrently --names \"server,ui\" --prefix-colors \"cyan,magenta\" \"npm:studio:server\" \"npm:studio:ui\"",
     "studio:server": "cd studio-server && npm run dev",
-    "studio:ui": "cd studio-ui && npm start",
-    "cy:open": "cypress open",
-    "cy:run": "cypress run",
-    "cy:run:headed": "cypress run --headed --no-exit"
+    "studio:ui": "cd studio-ui && npm start"
   },
   "keywords": [
     "cypress",
@@ -20,25 +17,7 @@
   ],
   "author": "Arun Gounder <arun.gounder@thecontrast.in>",
   "license": "UNLICENSED",
-  "cypress-cucumber-preprocessor": {
-    "stepDefinitions": [
-      "cypress/support/step_definitions/**/*.{ts,js}"
-    ],
-    "json": {
-      "enabled": true,
-      "output": ".test-studio/last-run.json"
-    },
-    "html": {
-      "enabled": false
-    }
-  },
   "devDependencies": {
-    "@badeball/cypress-cucumber-preprocessor": "^24.0.1",
-    "@bahmutov/cypress-esbuild-preprocessor": "^2.2.8",
-    "@types/node": "^25.6.2",
-    "concurrently": "^9.2.1",
-    "cypress": "^14.5.4",
-    "esbuild": "^0.28.0",
-    "typescript": "^5.6.3"
+    "concurrently": "^9.2.1"
   }
 }
