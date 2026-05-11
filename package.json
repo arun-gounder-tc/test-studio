@@ -4,9 +4,18 @@
   "description": "Monorepo container for studio-server (backend) + studio-ui (frontend). Each is independently deployable.",
   "private": true,
   "scripts": {
+    "start": "npm run studio",
+    "dev": "npm run studio",
     "studio": "concurrently --names \"server,ui\" --prefix-colors \"cyan,magenta\" \"npm:studio:server\" \"npm:studio:ui\"",
     "studio:server": "cd studio-server && npm run dev",
-    "studio:ui": "cd studio-ui && npm start"
+    "studio:ui": "cd studio-ui && npm start",
+    "install:all": "npm install && npm install --prefix studio-server && npm install --prefix studio-ui",
+    "build": "npm run build:server && npm run build:ui",
+    "build:server": "npm run build --prefix studio-server",
+    "build:ui": "npm run build --prefix studio-ui",
+    "clean": "rm -rf node_modules studio-server/node_modules studio-server/dist studio-ui/node_modules studio-ui/dist studio-ui/.angular",
+    "cy:run": "npm run cy:run --prefix studio-server",
+    "cy:open": "npm run cy:open --prefix studio-server"
   },
   "keywords": [
     "cypress",

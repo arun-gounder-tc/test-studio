@@ -9,7 +9,21 @@
 # Node
 /node_modules
 npm-debug.log
-yarn-error.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Build outputs (Angular)
+/dist
+/build
+*.tsbuildinfo
 
 # IDEs and editors
 .idea/
