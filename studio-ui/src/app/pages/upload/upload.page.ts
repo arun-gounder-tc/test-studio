@@ -7,9 +7,9 @@ import { LucideAngularModule, ArrowLeft, Upload, MessageCircle } from 'lucide-an
   standalone: true,
   imports: [RouterLink, LucideAngularModule],
   template: `
-    <div class="mx-auto max-w-2xl px-6 py-12">
-      <div class="rounded-lg border border-zinc-200 bg-white p-8">
-        <div class="flex items-start gap-4">
+    <div class="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
+      <div class="rounded-lg border border-zinc-200 bg-white p-5 sm:p-8">
+        <div class="flex items-start gap-3 sm:gap-4">
           <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-indigo-50 text-indigo-600">
             <i-lucide [img]="Upload" class="h-5 w-5"></i-lucide>
           </span>

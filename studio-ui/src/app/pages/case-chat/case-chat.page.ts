@@ -45,12 +45,12 @@ interface DisplayMessage extends ChatMessage {
   standalone: true,
   imports: [CommonModule, FormsModule, LucideAngularModule],
   template: `
-    <div class="mx-auto flex h-[calc(100vh-3.5rem)] max-w-7xl flex-col px-6 py-6">
+    <div class="mx-auto flex h-[calc(100vh-3.5rem)] max-w-7xl flex-col px-4 py-4 sm:h-[calc(100vh-4rem)] sm:px-6 sm:py-6">
       <!-- Header -->
-      <header class="mb-4 flex items-end justify-between gap-4">
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-2xl font-semibold tracking-tight text-zinc-900">
+      <header class="mb-3 flex flex-wrap items-end justify-between gap-3 sm:mb-4 sm:gap-4">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="text-lg font-semibold tracking-tight text-zinc-900 sm:text-2xl">
               {{ isRefining() ? 'Refine Test' : 'New Test' }}
             </h1>
             @if (isRefining()) {
@@ -59,7 +59,7 @@ interface DisplayMessage extends ChatMessage {
               </span>
             }
           </div>
-          <p class="mt-1 text-sm text-zinc-500">
+          <p class="mt-1 hidden text-sm text-zinc-500 sm:block">
             @if (isRefining()) {
               Tell the AI what to change — saving will <span class="font-medium text-zinc-700">overwrite</span> the original file.
             } @else {
@@ -67,7 +67,7 @@ interface DisplayMessage extends ChatMessage {
             }
           </p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           @if (models().length > 0) {
             <label class="flex items-center gap-2">
               <span class="text-xs font-medium text-zinc-500">Model</span>
@@ -252,10 +252,11 @@ interface DisplayMessage extends ChatMessage {
                 type="button"
                 (click)="send()"
                 [disabled]="!canSendMessage()"
-                class="inline-flex h-fit items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40 focus-ring"
+                class="inline-flex h-fit items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40 focus-ring sm:px-4"
+                title="Send"
               >
                 <i-lucide [img]="Send" class="h-3.5 w-3.5"></i-lucide>
-                Send
+                <span class="hidden sm:inline">Send</span>
               </button>
             </div>
           </div>

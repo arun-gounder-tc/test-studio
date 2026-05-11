@@ -26,11 +26,11 @@ import { PreviewDialogComponent } from '../../components/preview-dialog/preview-
   standalone: true,
   imports: [CommonModule, LucideAngularModule],
   template: `
-    <div class="mx-auto max-w-7xl px-6 py-8">
-      <header class="mb-6 flex items-end justify-between gap-4">
-        <div>
-          <h1 class="text-2xl font-semibold tracking-tight text-zinc-900">Test Library</h1>
-          <p class="mt-1 text-sm text-zinc-500">
+    <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+      <header class="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div class="min-w-0">
+          <h1 class="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl">Test Library</h1>
+          <p class="mt-1 text-xs text-zinc-500 sm:text-sm">
             @if (!loading()) {
               {{ total() }} test{{ total() === 1 ? '' : 's' }} in this project
             } @else {
@@ -84,9 +84,9 @@ import { PreviewDialogComponent } from '../../components/preview-dialog/preview-
         </div>
       }
 
-      <div class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div class="mt-6 grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
         @for (test of tests(); track test.id) {
-          <article class="group flex flex-col rounded-lg border border-zinc-200 bg-white p-5 transition-colors hover:border-zinc-300 hover:shadow-sm">
+          <article class="group flex flex-col rounded-lg border border-zinc-200 bg-white p-4 transition-colors hover:border-zinc-300 hover:shadow-sm sm:p-5">
             <header class="flex items-start gap-3">
               <span
                 class="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full"

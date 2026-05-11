@@ -10,15 +10,15 @@ import { ToastService } from '../../shared/toast/toast.service';
   standalone: true,
   imports: [FormsModule, LucideAngularModule],
   template: `
-    <div class="mx-auto max-w-5xl px-6 py-10">
-      <div class="mb-8 flex items-center justify-between">
-        <div>
-          <h1 class="text-2xl font-bold tracking-tight text-zinc-900">Projects</h1>
-          <p class="mt-1 text-sm text-zinc-500">Select a project to test, or create a new one.</p>
+    <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
+        <div class="min-w-0">
+          <h1 class="text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl">Projects</h1>
+          <p class="mt-1 text-xs text-zinc-500 sm:text-sm">Select a project to test, or create a new one.</p>
         </div>
         <button
           (click)="showCreate = true"
-          class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+          class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors sm:px-4"
         >
           <i-lucide [img]="Plus" class="h-4 w-4"></i-lucide>
           New Project
@@ -86,8 +86,8 @@ import { ToastService } from '../../shared/toast/toast.service';
 
     <!-- Create dialog -->
     @if (showCreate) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+        <div class="w-full max-w-md rounded-xl bg-white p-4 shadow-xl sm:p-6">
           <h2 class="text-lg font-semibold text-zinc-900 mb-4">New Project</h2>
           <div class="space-y-3">
             <div>

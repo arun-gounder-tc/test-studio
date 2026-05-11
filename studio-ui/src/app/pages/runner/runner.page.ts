@@ -47,19 +47,19 @@ interface LogLine {
   standalone: true,
   imports: [CommonModule, RouterLink, LucideAngularModule],
   template: `
-    <div class="mx-auto flex h-[calc(100vh-3.5rem)] max-w-7xl flex-col px-6 py-6">
+    <div class="mx-auto flex h-[calc(100vh-3.5rem)] max-w-7xl flex-col px-4 py-4 sm:h-[calc(100vh-4rem)] sm:px-6 sm:py-6">
       <!-- Header -->
-      <header class="mb-4 flex items-end justify-between gap-4">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2">
+      <header class="mb-3 flex flex-wrap items-end justify-between gap-3 sm:mb-4 sm:gap-4">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
             <a
               routerLink="/library"
-              class="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 focus-ring"
+              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 focus-ring"
               title="Back to library"
             >
               <i-lucide [img]="ArrowLeft" class="h-4 w-4"></i-lucide>
             </a>
-            <h1 class="truncate text-2xl font-semibold tracking-tight text-zinc-900">
+            <h1 class="min-w-0 truncate text-lg font-semibold tracking-tight text-zinc-900 sm:text-2xl">
               {{ testSummary()?.name ?? 'Test Run' }}
             </h1>
             <span
@@ -90,14 +90,15 @@ interface LogLine {
             · {{ headed() ? 'headed (browser visible)' : 'headless' }}
           </p>
         </div>
-        <div class="flex shrink-0 items-center gap-2">
+        <div class="flex shrink-0 flex-wrap items-center gap-2">
           @if (testId(); as tid) {
             <a
               [routerLink]="['/edit', tid]"
-              class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 focus-ring"
+              class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 focus-ring sm:px-3"
+              title="Edit"
             >
               <i-lucide [img]="Pencil" class="h-3.5 w-3.5"></i-lucide>
-              Edit
+              <span class="hidden sm:inline">Edit</span>
             </a>
           }
           <div class="flex items-center divide-x divide-indigo-500 overflow-hidden rounded-md bg-indigo-600">
@@ -105,7 +106,7 @@ interface LogLine {
               type="button"
               (click)="rerunWithMode(false)"
               [disabled]="status() === 'running'"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 focus-ring"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 focus-ring sm:px-3"
             >
               <i-lucide [img]="RefreshCw" class="h-3.5 w-3.5"></i-lucide>
               Re-run
@@ -130,7 +131,7 @@ interface LogLine {
         </div>
       }
 
-      <div class="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <!-- Logs -->
         <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-zinc-200 bg-zinc-950">
           <header class="flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-3 py-2">
@@ -162,11 +163,11 @@ interface LogLine {
           <div class="grid grid-cols-2 gap-2">
             <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
               <div class="text-[11px] font-medium uppercase tracking-wide text-emerald-700">Passed</div>
-              <div class="mt-1 text-2xl font-semibold text-emerald-700">{{ passCount() }}</div>
+              <div class="mt-1 text-xl font-semibold text-emerald-700 sm:text-2xl">{{ passCount() }}</div>
             </div>
             <div class="rounded-lg border border-red-200 bg-red-50 p-3">
               <div class="text-[11px] font-medium uppercase tracking-wide text-red-700">Failed</div>
-              <div class="mt-1 text-2xl font-semibold text-red-700">{{ failCount() }}</div>
+              <div class="mt-1 text-xl font-semibold text-red-700 sm:text-2xl">{{ failCount() }}</div>
             </div>
           </div>
 

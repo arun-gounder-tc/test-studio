@@ -49,14 +49,14 @@ interface ExpandedLogs {
   standalone: true,
   imports: [CommonModule, RouterLink, LucideAngularModule],
   template: `
-    <div class="mx-auto max-w-7xl px-6 py-8">
-      <header class="mb-6 flex items-end justify-between gap-4">
-        <div>
-          <h1 class="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-900">
-            <i-lucide [img]="History" class="h-6 w-6 text-indigo-600"></i-lucide>
+    <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+      <header class="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div class="min-w-0">
+          <h1 class="flex items-center gap-2 text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl">
+            <i-lucide [img]="History" class="h-5 w-5 text-indigo-600 sm:h-6 sm:w-6"></i-lucide>
             Run History
           </h1>
-          <p class="mt-1 text-sm text-zinc-500">
+          <p class="mt-1 text-xs text-zinc-500 sm:text-sm">
             @if (!loading()) {
               {{ runs().length }} run{{ runs().length === 1 ? '' : 's' }} for this project
             } @else {
@@ -100,7 +100,141 @@ interface ExpandedLogs {
       }
 
       @if (runs().length > 0) {
-        <div class="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white">
+        <!-- Mobile: card list -->
+        <div class="mt-6 space-y-3 md:hidden">
+          @for (run of runs(); track run.id) {
+            <div
+              class="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm"
+              [class.ring-2]="expandedId() === run.id"
+              [class.ring-indigo-200]="expandedId() === run.id"
+            >
+              <button
+                type="button"
+                (click)="toggleExpand(run.id)"
+                class="flex w-full items-start gap-2 text-left"
+              >
+                <span
+                  class="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset"
+                  [class.bg-indigo-50]="run.status === 'running'"
+                  [class.text-indigo-700]="run.status === 'running'"
+                  [class.ring-indigo-200]="run.status === 'running'"
+                  [class.bg-emerald-50]="run.status === 'passed'"
+                  [class.text-emerald-700]="run.status === 'passed'"
+                  [class.ring-emerald-200]="run.status === 'passed'"
+                  [class.bg-red-50]="run.status === 'failed' || run.status === 'errored'"
+                  [class.text-red-700]="run.status === 'failed' || run.status === 'errored'"
+                  [class.ring-red-200]="run.status === 'failed' || run.status === 'errored'"
+                  [class.bg-zinc-100]="run.status === 'queued' || run.status === 'cancelled'"
+                  [class.text-zinc-600]="run.status === 'queued' || run.status === 'cancelled'"
+                  [class.ring-zinc-200]="run.status === 'queued' || run.status === 'cancelled'"
+                >
+                  @switch (run.status) {
+                    @case ('running') { <i-lucide [img]="Loader2" class="h-3 w-3 animate-spin"></i-lucide> }
+                    @case ('passed')  { <i-lucide [img]="CheckCircle2" class="h-3 w-3"></i-lucide> }
+                    @case ('failed')  { <i-lucide [img]="XCircle" class="h-3 w-3"></i-lucide> }
+                    @case ('errored') { <i-lucide [img]="AlertCircle" class="h-3 w-3"></i-lucide> }
+                    @default          { <i-lucide [img]="Clock" class="h-3 w-3"></i-lucide> }
+                  }
+                  {{ run.status }}
+                </span>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-medium text-zinc-900">{{ testName(run.testId) }}</p>
+                  <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500">
+                    <span class="inline-flex items-center gap-1">
+                      <i-lucide [img]="Clock" class="h-3 w-3"></i-lucide>
+                      {{ relativeTime(run.startedAt) }}
+                    </span>
+                    @if (run.durationMs != null) {
+                      <span>· {{ durationLabel(run.durationMs) }}</span>
+                    }
+                    @if (run.scenariosTotal != null && run.scenariosTotal > 0) {
+                      <span>
+                        ·
+                        <span class="text-emerald-600">{{ run.scenariosPassed ?? 0 }}</span>
+                        /
+                        <span class="text-red-600">{{ run.scenariosFailed ?? 0 }}</span>
+                        of {{ run.scenariosTotal }}
+                      </span>
+                    }
+                  </div>
+                </div>
+                <i-lucide
+                  [img]="expandedId() === run.id ? ChevronDown : ChevronRight"
+                  class="mt-1 h-4 w-4 shrink-0 text-zinc-400"
+                ></i-lucide>
+              </button>
+
+              @if (run.testId) {
+                <div class="mt-3 flex justify-end">
+                  <a
+                    [routerLink]="['/run', run.testId]"
+                    class="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                  >
+                    <i-lucide [img]="Play" class="h-3 w-3"></i-lucide>
+                    Re-run
+                  </a>
+                </div>
+              }
+
+              @if (expandedId() === run.id) {
+                <div class="mt-3 border-t border-zinc-100 pt-3">
+                  @if (artifactsState().loading) {
+                    <p class="text-xs text-zinc-500">Loading artifacts…</p>
+                  } @else if (artifactsState().error) {
+                    <p class="text-xs text-red-600">{{ artifactsState().error }}</p>
+                  } @else {
+                    @if (artifactsState().video; as v) {
+                      <video [src]="v.url" controls class="block w-full rounded-md"></video>
+                    }
+                    @if (artifactsState().screenshots.length > 0) {
+                      <div class="mt-2 grid grid-cols-2 gap-2">
+                        @for (s of artifactsState().screenshots; track s.id) {
+                          <a [href]="s.url" target="_blank" class="block overflow-hidden rounded border border-zinc-200" [title]="s.scenarioName ?? ''">
+                            <img [src]="s.url" [alt]="s.scenarioName ?? 'screenshot'" class="aspect-video w-full object-cover" />
+                          </a>
+                        }
+                      </div>
+                    }
+                    @if (artifactsState().report; as r) {
+                      <a [href]="r.url" target="_blank" class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-indigo-600">
+                        <i-lucide [img]="FileText" class="h-3 w-3"></i-lucide>
+                        View report
+                      </a>
+                    }
+                  }
+
+                  <!-- Logs -->
+                  <div class="mt-3 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-950">
+                    <header class="flex items-center gap-2 border-b border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400">
+                      <i-lucide [img]="Terminal" class="h-3.5 w-3.5"></i-lucide>
+                      Run log
+                      @if (logsState().lines.length > 0) {
+                        <span class="ml-auto text-[10px] text-zinc-500">{{ logsState().lines.length }} lines</span>
+                      }
+                    </header>
+                    @if (logsState().loading) {
+                      <p class="p-3 text-xs text-zinc-500">Loading logs…</p>
+                    } @else if (logsState().error) {
+                      <p class="p-3 text-xs text-red-400">{{ logsState().error }}</p>
+                    } @else if (logsState().lines.length === 0) {
+                      <p class="p-3 text-xs text-zinc-500">No logs captured.</p>
+                    } @else {
+                      <pre class="m-0 max-h-72 overflow-auto p-3 font-mono text-[11px] leading-5 text-zinc-300">@for (l of logsState().lines; track l.sequence) {<span
+                          [class.text-zinc-300]="l.stream === 'stdout'"
+                          [class.text-red-400]="l.stream === 'stderr'"
+                          [class.text-indigo-400]="l.stream === 'event'"
+                        >{{ l.line }}
+</span>}</pre>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Desktop: table -->
+        <div class="mt-6 hidden overflow-hidden rounded-lg border border-zinc-200 bg-white md:block">
           <table class="min-w-full divide-y divide-zinc-200 text-sm">
             <thead class="bg-zinc-50 text-xs font-medium uppercase tracking-wide text-zinc-500">
               <tr>

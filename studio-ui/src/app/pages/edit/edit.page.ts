@@ -32,69 +32,72 @@ interface ValidationState {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, LucideAngularModule],
   template: `
-    <div class="mx-auto flex h-[calc(100vh-3.5rem)] max-w-7xl flex-col px-6 py-6">
+    <div class="mx-auto flex h-[calc(100vh-3.5rem)] max-w-7xl flex-col px-4 py-4 sm:h-[calc(100vh-4rem)] sm:px-6 sm:py-6">
       <!-- Header -->
-      <header class="mb-4 flex items-end justify-between gap-4">
-        <div class="min-w-0">
+      <header class="mb-3 flex flex-wrap items-end justify-between gap-3 sm:mb-4 sm:gap-4">
+        <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
             <a
               routerLink="/library"
-              class="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 focus-ring"
+              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 focus-ring"
               title="Back to library"
             >
               <i-lucide [img]="ArrowLeft" class="h-4 w-4"></i-lucide>
             </a>
-            <h1 class="truncate text-2xl font-semibold tracking-tight text-zinc-900">
+            <h1 class="min-w-0 truncate text-lg font-semibold tracking-tight text-zinc-900 sm:text-2xl">
               {{ testName() || 'Edit Test' }}
             </h1>
             @if (dirty()) {
-              <span class="inline-block h-2 w-2 rounded-full bg-amber-500" title="Unsaved changes"></span>
+              <span class="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Unsaved changes"></span>
             }
           </div>
-          <code class="mt-1 block truncate font-mono text-xs text-zinc-500">{{ relativePath() }}</code>
+          <code class="mt-1 block truncate font-mono text-[11px] text-zinc-500 sm:text-xs">{{ relativePath() }}</code>
         </div>
-        <div class="flex shrink-0 items-center gap-2">
+        <div class="flex shrink-0 flex-wrap items-center gap-2">
           <button
             type="button"
             (click)="reset()"
             [disabled]="!dirty() || saving() || running()"
-            class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 focus-ring"
+            class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 focus-ring sm:px-3"
+            title="Reset"
           >
             <i-lucide [img]="RefreshCw" class="h-3.5 w-3.5"></i-lucide>
-            Reset
+            <span class="hidden sm:inline">Reset</span>
           </button>
           <button
             type="button"
             (click)="refineWithAI()"
             [disabled]="refining() || saving() || running()"
-            class="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 focus-ring"
+            class="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 focus-ring sm:px-3"
+            title="Refine with AI"
           >
             @if (refining()) {
               <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-indigo-600/30 border-t-indigo-600"></span>
             } @else {
               <i-lucide [img]="Sparkles" class="h-3.5 w-3.5"></i-lucide>
             }
-            Refine with AI
+            <span class="hidden sm:inline">Refine with AI</span>
           </button>
           <button
             type="button"
             (click)="save(true)"
             [disabled]="!dirty() || !validation().ok || saving() || running()"
-            class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 focus-ring"
+            class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 focus-ring sm:px-3"
+            title="Save"
           >
             @if (saving()) {
               <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-zinc-400/40 border-t-zinc-700"></span>
             } @else {
               <i-lucide [img]="Save" class="h-3.5 w-3.5"></i-lucide>
             }
-            Save
+            <span class="hidden sm:inline">Save</span>
           </button>
           <div class="flex items-center divide-x divide-indigo-500 overflow-hidden rounded-md bg-indigo-600 disabled:opacity-50">
             <button
               type="button"
               (click)="saveAndRun(false)"
               [disabled]="!validation().ok || saving() || running()"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 focus-ring"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 focus-ring sm:px-3"
               title="Save (if dirty) then run headless"
             >
               <i-lucide [img]="Play" class="h-3.5 w-3.5"></i-lucide>
