@@ -139,7 +139,7 @@ class RunnerService extends EventEmitter {
       env.CY_USE_BASE_URL = '1'; // legacy fallback for cypress.config.ts conditional
     }
 
-    const args = [
+    const cypressArgs = [
       'cypress',
       'run',
       '--spec',
@@ -147,9 +147,18 @@ class RunnerService extends EventEmitter {
       '--reporter',
       'spec',
     ];
-    if (headed) args.push('--headed');
+    if (headed) cypressArgs.push('--headed');
 
-    const child = spawn('npx', args, {
+    // In a container we need a virtual display for headed runs. xvfb-run
+    // is installed in our Dockerfile; locally it's only used if present.
+    // For headless runs Cypress launches Electron without a display.
+    const useXvfb = headed && process.env.NODE_ENV === 'production';
+    const execName = useXvfb ? 'xvfb-run' : 'npx';
+    const execArgs = useXvfb
+      ? ['--auto-servernum', '--server-args=-screen 0 1440x900x24', 'npx', ...cypressArgs]
+      : cypressArgs;
+
+    const child = spawn(execName, execArgs, {
       cwd: paths.projectRoot,
       env,
     });

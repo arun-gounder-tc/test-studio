@@ -21,7 +21,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       xvfb \
       ca-certificates \
       curl \
-      dumb-init \
       tini \
     && rm -rf /var/lib/apt/lists/*
 
@@ -51,7 +50,14 @@ ENV NODE_ENV=production
 ENV PORT=3001
 EXPOSE 3001
 
-# tini = PID 1 reaper (handles SIGTERM correctly + reaps zombie Cypress procs)
-# xvfb-run = virtual display so headed runs work even on a headless host
-ENTRYPOINT ["tini", "--", "xvfb-run", "--auto-servernum", "--server-args=-screen 0 1440x900x24"]
+# Simple healthcheck — Coolify uses this to know the container is alive.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD curl -fsS http://localhost:3001/api/test-studio/health || exit 1
+
+# tini = PID 1 reaper (handles SIGTERM correctly + reaps zombie Cypress procs).
+# xvfb stays installed for HEADED runs — the runner can wrap individual
+# `cypress run --headed` spawns with `xvfb-run` when needed. We DON'T wrap
+# the server itself with xvfb-run because that fails in some container
+# runtimes (small /dev/shm, X11 lock conflicts) and causes restart loops.
+ENTRYPOINT ["tini", "--"]
 CMD ["node", "dist/server.js"]
