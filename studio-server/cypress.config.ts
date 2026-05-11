@@ -2,7 +2,16 @@ import { defineConfig } from 'cypress';
 import createBundler from '@bahmutov/cypress-esbuild-preprocessor';
 import { addCucumberPreprocessorPlugin } from '@badeball/cypress-cucumber-preprocessor';
 import { createEsbuildPlugin } from '@badeball/cypress-cucumber-preprocessor/esbuild';
-import studioConfig from './config/studio.config.json';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Read studio.config.json manually — avoids Node ESM "import attributes" requirement
+// that Cypress's bundled ts-node doesn't yet support.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const studioConfig = JSON.parse(
+  fs.readFileSync(path.join(__dirname, 'config/studio.config.json'), 'utf-8')
+) as { targetApp: { baseUrl: string } };
 
 // baseUrl only applied when CY_USE_BASE_URL=1 (so smoke tests with absolute URLs
 // don't fail when the target app isn't running). Once novamark-fe runs locally,
