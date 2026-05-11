@@ -6,6 +6,7 @@ import { paths } from '../utils/paths.js';
 import { RunsRepo } from '../db/repositories/runs.repo.js';
 import { RunLogsRepo } from '../db/repositories/run-logs.repo.js';
 import { Run } from '../db/models/run.model.js';
+import { ProjectsRepo } from '../db/repositories/projects.repo.js';
 import { storage } from './storage/index.js';
 
 export type RunEventType =
@@ -122,10 +123,16 @@ class RunnerService extends EventEmitter {
       ...(process.env as Record<string, string>),
       FORCE_COLOR: '0',
     };
-    if (this.specNeedsBaseUrl(fullSpec)) {
-      env.CY_USE_BASE_URL = '1';
-    } else {
-      delete env.CY_USE_BASE_URL;
+
+    // Resolve the project's target-app baseUrl from DB and pass it via the
+    // Cypress-native CYPRESS_BASE_URL env var. Cypress automatically applies
+    // any CYPRESS_* env var to its config (CYPRESS_BASE_URL → config.baseUrl).
+    // This means cy.visit('/') and cy.visit('/sign-in') resolve against the
+    // project's target app — no studio.config.json round-trip needed.
+    const project = await ProjectsRepo.get(opts.projectId);
+    if (project?.baseUrl) {
+      env.CYPRESS_BASE_URL = project.baseUrl;
+      env.CY_USE_BASE_URL = '1'; // legacy fallback for cypress.config.ts conditional
     }
 
     const args = [
@@ -309,19 +316,6 @@ class RunnerService extends EventEmitter {
     } catch (err) {
       // Don't crash the run on bad reports — fall back to stdout-derived scenarios
       return null;
-    }
-  }
-
-  private specNeedsBaseUrl(absSpecPath: string): boolean {
-    try {
-      const content = fs.readFileSync(absSpecPath, 'utf-8');
-      // Match relative paths in:
-      //  - cy.visit('/foo')   cy.visit("/foo")   cy.visit(`/foo`)
-      //  - "I navigate to '/foo'"  "When I am on '/foo'"
-      // Excludes absolute URLs (http://, https://) and Windows paths.
-      return /(?:cy\.visit\s*\(\s*['"`]\/|(?:navigate to|am on|go to)\s+['"`]\/)/i.test(content);
-    } catch {
-      return false;
     }
   }
 
